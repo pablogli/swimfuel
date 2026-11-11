@@ -10,4 +10,4 @@ Funciona sin conexión. Los datos (comidas, diario, clave de Gemini) se guardan 
 
 ## Actualizar la app
 1. Cambia los archivos y súbelos.
-2. Sube el número de `CACHE` en `sw.js` (por ejemplo `swimfuel-v4`) para que el móvil descargue la versión nueva. Se verá la segunda vez que abras la app.
+2. Sube el número de `CACHE` en `sw.js` (por ejemplo `swimfuel-v5`) para que el móvil descargue la versión nueva. Se verá la segunda vez que abras la app.

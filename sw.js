@@ -1,7 +1,7 @@
 // Service worker de SwimFuel: guarda la app en el móvil para que abra al instante y funcione sin conexión.
 // Tus datos NO pasan por aquí (están en el almacenamiento del navegador); esto solo guarda los archivos de la app.
 // Al publicar cambios, sube el número de versión para que los móviles descarguen la versión nueva.
-const CACHE = 'swimfuel-v3';
+const CACHE = 'swimfuel-v4';
 
 // La página principal se guarda como "./" (no "./index.html"): algunos alojamientos, como Cloudflare,
 // redirigen /index.html a / y una respuesta redirigida no puede usarse para abrir la app.

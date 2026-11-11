@@ -222,10 +222,55 @@
 
         .day-grid {
             display: grid;
-            grid-template-columns: 1fr 105px 105px 105px;
+            grid-template-columns: 1fr 130px;
             gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        /* ---------- Entrenos del día ---------- */
+        .section-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--cyan);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .session {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
             margin-bottom: 10px;
         }
+
+        .session-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .session-title { font-weight: 700; flex: 1; }
+        .session-kcal { font-weight: 800; color: var(--cyan); white-space: nowrap; }
+        .session-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 10px; }
+        .session-grid .span-all { grid-column: 1 / -1; }
+        .session-grid .span-2 { grid-column: span 2; }
+        .sets-hint { font-size: 0.74rem; color: #34d399; margin-top: 3px; min-height: 1.1em; }
+        .rpe-row input[type="range"] { width: 100%; accent-color: var(--cyan); }
+        .rpe-row label strong { color: var(--text); }
+        .session-method { font-size: 0.72rem; color: var(--muted); margin-top: 6px; }
+        .add-session-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+
+        .energy-breakdown {
+            font-size: 0.8rem;
+            color: var(--muted);
+            background: rgba(10, 17, 24, 0.6);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 10px;
+            margin-bottom: 12px;
+        }
+
+        .energy-breakdown strong { color: var(--text); }
+
+        .calib-progress { height: 6px; background: #0b141d; border-radius: 99px; overflow: hidden; margin: 4px 0 10px; }
+        .calib-progress > div { height: 100%; background: var(--cyan); border-radius: 99px; }
 
         #saveIndicator { min-height: 1.2em; }
 
@@ -581,8 +626,7 @@
 
         /* ---------- Responsive ---------- */
         @media (max-width: 860px) {
-            .day-grid { grid-template-columns: repeat(3, 1fr); }
-            .day-grid .span-all { grid-column: 1 / -1; }
+            .day-grid { grid-template-columns: 1fr 115px; }
             .kpi-grid { grid-template-columns: repeat(2, 1fr); }
             .supp-list { grid-template-columns: 1fr; }
         }
@@ -675,8 +719,8 @@
                 <button class="btn-secondary date-arrow" id="btnNextDay" title="Día siguiente" aria-label="Día siguiente">›</button>
             </div>
             <div class="day-grid">
-                <div class="span-all">
-                    <label for="dayType">Entrenamiento</label>
+                <div>
+                    <label for="dayType">Tipo de jornada</label>
                     <select id="dayType">
                         <option value="Agua + Gimnasio" selected>Agua + Gimnasio / Seco</option>
                         <option value="Doble Sesión Agua">Doble sesión de agua (alto volumen)</option>
@@ -687,21 +731,23 @@
                     </select>
                 </div>
                 <div>
-                    <label for="swimMin">Agua (min)</label>
-                    <input type="number" id="swimMin" value="105" step="15" min="0" max="480" inputmode="numeric">
-                </div>
-                <div>
-                    <label for="gymMin">Gym (min)</label>
-                    <input type="number" id="gymMin" value="60" step="15" min="0" max="240" inputmode="numeric">
-                </div>
-                <div>
-                    <label for="weight">Peso (kg)</label>
-                    <input type="number" id="weight" value="80" step="0.1" min="30" max="200" inputmode="decimal">
+                    <label for="weight" title="Pésate por la mañana, en ayunas. Si lo dejas vacío se usa tu último peso.">Peso hoy (kg)</label>
+                    <input type="number" id="weight" step="0.1" min="30" max="200" inputmode="decimal" placeholder="80.0">
                 </div>
             </div>
+
+            <div class="section-label">Entrenos del día</div>
+            <div id="sessionsContainer"></div>
+            <div class="add-session-row">
+                <button class="btn-secondary btn-sm" data-add-session="swim">＋ 🏊 Agua</button>
+                <button class="btn-secondary btn-sm" data-add-session="gym">＋ 🏋️ Gimnasio</button>
+                <button class="btn-secondary btn-sm" data-add-session="other">＋ 🏃 Otro</button>
+            </div>
+            <div class="energy-breakdown" id="energyBreakdown"></div>
+
             <div class="form-group">
                 <label for="logNotes">Notas / sensaciones</label>
-                <input type="text" id="logNotes" placeholder="Ej: 8x100 libre c/1:30 + fuerza. Buenas sensaciones.">
+                <input type="text" id="logNotes" placeholder="Ej: buenas sensaciones, algo cargado de hombros.">
             </div>
             <div class="muted small" id="saveIndicator"></div>
         </div>
@@ -786,6 +832,11 @@
             <div class="card-head"><h2>Resumen</h2></div>
             <div class="stats-grid" id="historyStats"></div>
             <div class="chart-wrap" id="historyChart"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-head"><h2>🔬 Tu gasto real</h2></div>
+            <div id="calibrationCard"></div>
         </div>
 
         <div class="card">
@@ -884,14 +935,26 @@
                     <option value="cut">Definición (−300 kcal)</option>
                 </select>
             </div>
+            <div class="form-group">
+                <label for="activity">Actividad fuera de los entrenos</label>
+                <select id="activity">
+                    <option value="1.3">Sentado casi todo el día</option>
+                    <option value="1.4" selected>Estudiante u oficina, andando algo</option>
+                    <option value="1.55">De pie o andando mucho</option>
+                    <option value="1.7">Trabajo físico</option>
+                </select>
+            </div>
+            <div class="small" id="calibrationInfo" style="margin-bottom:12px;"></div>
             <details class="small muted">
                 <summary style="cursor:pointer;">¿Cómo se calculan los objetivos?</summary>
                 <ul style="margin:8px 0 0 18px;">
-                    <li>Gasto base: Mifflin-St Jeor × 1,45.</li>
-                    <li>Entrenamiento: MET netos (MET − 1) × minutos de agua y gimnasio, según el tipo de jornada.</li>
-                    <li>Proteína: 2,1 g/kg (1,9 en fondo; 2,3 en definición).</li>
-                    <li>Carbohidratos: de 4 g/kg (descanso) a 8,5 g/kg (doble sesión); +1 g/kg en fondo.</li>
-                    <li>Grasas: el resto de la energía, entre 1 g/kg y el 30% de las kcal. Lo que sobra pasa a carbohidratos.</li>
+                    <li><strong>Gasto base:</strong> metabolismo basal (Mifflin-St Jeor) × tu actividad fuera de los entrenos.</li>
+                    <li><strong>Agua con metros:</strong> 0,0022 kcal por metro y kg de peso, × estilo (espalda ×1,15, estilos ×1,25, piernas/técnica ×1,3, mariposa ×1,4, braza ×1,45) × intensidad (±6% por cada punto sobre 6). El tiempo de la sesión que no pasas nadando (descansos) suma como actividad ligera (MET 2,5).</li>
+                    <li><strong>Agua sin metros:</strong> por minutos, con un MET de 3,5 + 0,7 × intensidad (incluye los descansos típicos de un entreno).</li>
+                    <li><strong>Gimnasio:</strong> MET según el tipo (fuerza 5, potencia 6, circuito 8, seco 4,5, movilidad 2,5), ±7% por cada punto de intensidad.</li>
+                    <li>Los entrenos suman solo el gasto <em>extra</em> (MET − 1): el de estar en reposo ya está en el gasto base.</li>
+                    <li><strong>Ajuste por tus datos:</strong> con 2–4 semanas de comidas y pesajes se compara lo que comes con cómo cambia tu peso y se corrige todo el cálculo.</li>
+                    <li>Proteína 2,1 g/kg (1,9 en fondo; 2,3 en definición). Carbohidratos de 4 g/kg (descanso) a 8,5 g/kg (doble sesión), +1 en fondo. Grasas: el resto, entre 1 g/kg y el 30% de las kcal.</li>
                 </ul>
             </details>
         </div>
@@ -1022,7 +1085,7 @@
     const STORAGE_KEY_LAST_BACKUP = 'swimfuel_last_backup';
     const STORAGE_KEY_BACKUP_NAG = 'swimfuel_backup_nag';
 
-    const PROFILE_FIELDS = ['sex', 'age', 'height', 'specialty', 'goal', 'weight'];
+    const PROFILE_FIELDS = ['sex', 'age', 'height', 'specialty', 'goal', 'activity'];
     const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
     const ID_RE = /^[\w-]+$/;
     const COLOR = { ok: '#10b981', warn: '#f59e0b', error: '#f43f5e', info: '#0072ff' };
@@ -1153,6 +1216,203 @@
     }
 
     // ==========================================================
+    // GASTO DE LOS ENTRENOS (sin reloj: metros, estilo e intensidad)
+    // ==========================================================
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const fmtInt = n => Math.round(n).toLocaleString('es-ES');
+
+    const SESSION_TYPES = {
+        swim: { icon: '🏊', label: 'Agua' },
+        gym: { icon: '🏋️', label: 'Gimnasio' },
+        other: { icon: '🏃', label: 'Otro deporte' }
+    };
+
+    // Coste por metro frente al crol a igual esfuerzo (braza y mariposa son mucho menos eficientes)
+    const STROKES = {
+        crawl: { label: 'Crol', factor: 1.0 },
+        back: { label: 'Espalda', factor: 1.15 },
+        im: { label: 'Estilos', factor: 1.25 },
+        kick: { label: 'Piernas / técnica', factor: 1.3 },
+        fly: { label: 'Mariposa', factor: 1.4 },
+        breast: { label: 'Braza', factor: 1.45 }
+    };
+
+    // MET a intensidad 6/10 (Compendium of Physical Activities); en fuerza cuentan los descansos entre series
+    const GYM_TYPES = {
+        strength: { label: 'Fuerza / hipertrofia', met: 5.0 },
+        power: { label: 'Potencia / pliometría', met: 6.0 },
+        circuit: { label: 'Circuito / HIIT', met: 8.0 },
+        dryland: { label: 'Seco: gomas y core', met: 4.5 },
+        mobility: { label: 'Movilidad / estiramientos', met: 2.5 }
+    };
+
+    // kcal EXTRA por metro y kg nadando crol a esfuerzo moderado (≈ 0,18 kcal/m para 80 kg)
+    const SWIM_KCAL_PER_M_KG = 0.0022;
+
+    // Para días guardados antes de las sesiones, que solo tenían el tipo de jornada
+    const RPE_BY_DAYTYPE = {
+        'Agua + Gimnasio': 6, 'Doble Sesión Agua': 7, 'Sesión Única Intensa': 8,
+        'Competición': 8, 'Tapering': 4, 'Descanso': 3
+    };
+
+    function rpeLabel(rpe) {
+        if (rpe <= 2) return 'muy suave';
+        if (rpe <= 4) return 'suave';
+        if (rpe <= 6) return 'moderado';
+        if (rpe <= 8) return 'duro';
+        return rpe === 9 ? 'muy duro' : 'máximo';
+    }
+
+    // kcal por minuto POR ENCIMA del reposo (el reposo ya está en el gasto base)
+    function netKcalPerMin(met, weight) {
+        return Math.max(0, met - 1) * 3.5 * weight / 200;
+    }
+
+    // Gasto extra de una sesión → { kcal, how } (how explica cómo se ha calculado)
+    function sessionKcal(s, weight) {
+        const rpe = clamp(Math.round(num(s.rpe, 6)), 1, 10);
+        const minutes = Math.max(0, num(s.minutes));
+
+        if (s.type === 'swim') {
+            const meters = Math.max(0, num(s.meters));
+            const stroke = STROKES[s.stroke] || STROKES.crawl;
+            if (meters > 0) {
+                // Ir más rápido cuesta más por cada metro (la resistencia del agua crece con la velocidad)
+                const intensity = 1 + 0.06 * (rpe - 6);
+                const swimming = meters * SWIM_KCAL_PER_M_KG * weight * stroke.factor * intensity;
+                // El resto de la sesión (descansos, explicaciones, técnica parado) cuenta como actividad ligera
+                const metersPerMin = (55 + 4 * rpe) / Math.sqrt(stroke.factor); // ritmo aproximado de nadador entrenado
+                const restMin = Math.max(0, minutes - meters / metersPerMin);
+                const resting = netKcalPerMin(2.5, weight) * restMin;
+                return {
+                    kcal: swimming + resting,
+                    how: `por metros (${fmtInt(meters)} m, ${stroke.label.toLowerCase()}, intensidad ${rpe})` +
+                        (restMin >= 5 ? ` + ~${Math.round(restMin)} min de descansos` : '')
+                };
+            }
+            // Sin metros: por tiempo, con un MET que ya incluye los descansos de un entreno normal
+            const met = 3.5 + 0.7 * rpe;
+            return {
+                kcal: netKcalPerMin(met, weight) * minutes,
+                how: minutes ? `por minutos (MET ${met.toFixed(1)}). Pon los metros para afinar.` : 'añade los metros o los minutos'
+            };
+        }
+
+        if (s.type === 'gym') {
+            const type = GYM_TYPES[s.gymType] || GYM_TYPES.strength;
+            const met = type.met * (1 + 0.07 * (rpe - 6));
+            return { kcal: netKcalPerMin(met, weight) * minutes, how: `según el tipo (${type.label}, MET ${met.toFixed(1)})` };
+        }
+
+        const met = 2 + rpe; // otro deporte: de MET 3 (muy suave) a 12 (máximo)
+        return { kcal: netKcalPerMin(met, weight) * minutes, how: `por minutos e intensidad (MET ${met.toFixed(1)})` };
+    }
+
+    // Suma los metros de unas series escritas como en la pizarra:
+    // "400 + 8x100 c/1:30 + 3x(4x50 + 100) + 200 suave" → 2.000 m
+    function parseSetsMeters(text) {
+        let t = String(text || '').toLowerCase().replace(/[×*]/g, 'x');
+        t = t.replace(/(\d{1,2})\.(\d{3})\b/g, '$1$2');                       // 1.500 → 1500
+        t = t.replace(/\d+\s*[:'’´]\s*\d*\s*["”'’´]*/g, ' ');                   // tiempos: 1:30, 1'30''
+        t = t.replace(/\d+[.,]\d+/g, ' ');                                     // tiempos con punto: c/1.30
+        t = t.replace(/\d+\s*(?:segundos|seg|s|minutos|mins|min)\b/g, ' ');    // descansos: 20s, 2 min
+        t = t.replace(/\b(?:rpe|zona|z|fc|ppm)\s*\d+/g, ' ');                  // rpe 7, z2, fc 160
+        t = t.replace(/(\d|\))\s*x\s*(?=[\d(])/g, '$1 * ');                    // 8x100 → 8 * 100
+        t = t.replace(/[^\d*()]+/g, ' ');                                      // palabras, +, comas… separan
+
+        const tokens = t.match(/\d+|\*|\(|\)/g) || [];
+        let i = 0;
+        const isNum = tok => /^\d+$/.test(tok || '');
+        // Una distancia suelta debe ser múltiplo de 25 (así "8 series" o "fc 160" no suman)
+        const dist = n => (n >= 25 && n <= 20000 && n % 25 === 0 ? n : 0);
+
+        function term() {
+            const tok = tokens[i];
+            if (tok === '(') {
+                i++;
+                const v = seq();
+                if (tokens[i] === ')') i++;
+                return v;
+            }
+            if (!isNum(tok)) return 0;
+            const n = parseInt(tok, 10);
+            i++;
+            if (tokens[i] !== '*') return dist(n);
+            i++;
+            // Par simple: "8x100" o al revés "100x8"
+            if (isNum(tokens[i]) && tokens[i + 1] !== '*') {
+                const m = parseInt(tokens[i], 10);
+                i++;
+                if (dist(m)) return n * m;
+                return dist(n) && m <= 100 ? n * m : 0;
+            }
+            return n <= 100 ? n * term() : 0; // "3x(…)" o "2x4x50"
+        }
+
+        function seq() {
+            let total = 0;
+            while (i < tokens.length && tokens[i] !== ')') {
+                const before = i;
+                total += term();
+                if (i === before) i++;
+            }
+            return total;
+        }
+
+        let total = 0;
+        while (i < tokens.length) {
+            total += seq();
+            i++; // salta un ")" sin pareja
+        }
+        return Math.round(total);
+    }
+
+    function sanitizeSession(s) {
+        if (!s || !SESSION_TYPES[s.type]) return null;
+        return {
+            id: ID_RE.test(String(s.id)) ? String(s.id) : newId('s_'),
+            type: s.type,
+            minutes: clamp(num(s.minutes), 0, 600),
+            rpe: clamp(Math.round(num(s.rpe, 6)), 1, 10),
+            meters: s.type === 'swim' ? clamp(num(s.meters), 0, 30000) : 0,
+            stroke: STROKES[s.stroke] ? s.stroke : 'crawl',
+            sets: String(s.sets || '').slice(0, 300),
+            metersFromSets: Boolean(s.metersFromSets),
+            gymType: GYM_TYPES[s.gymType] ? s.gymType : 'strength',
+            label: String(s.label || '').slice(0, 40)
+        };
+    }
+
+    function sanitizeSessions(list) {
+        return Array.isArray(list) ? list.map(sanitizeSession).filter(Boolean).slice(0, 10) : [];
+    }
+
+    // Días y perfiles de versiones anteriores: solo tenían minutos de agua y de gimnasio
+    function legacySessions(dayType, swimMin, gymMin) {
+        const out = [];
+        if (num(swimMin) > 0) out.push(sanitizeSession({ type: 'swim', minutes: swimMin, rpe: RPE_BY_DAYTYPE[dayType] ?? 6 }));
+        if (num(gymMin) > 0) out.push(sanitizeSession({ type: 'gym', minutes: gymMin, rpe: 6 }));
+        return out;
+    }
+
+    // Entrenos con los que empieza un día nuevo: los últimos que usaste (sin las series ni los metros)
+    function templateSessions(prof) {
+        const list = Array.isArray(prof.sessions)
+            ? sanitizeSessions(prof.sessions)
+            : legacySessions(prof.dayType || 'Agua + Gimnasio', prof.swimMin ?? 105, prof.gymMin ?? 60);
+        return list.map(s => ({ ...s, id: newId('s_'), meters: 0, sets: '', metersFromSets: false }));
+    }
+
+    function sessionsSummary(h) {
+        const list = Array.isArray(h.sessions) ? h.sessions : legacySessions(h.dayType, h.swimMin, h.gymMin);
+        return list.map(s => {
+            if (s.type === 'swim') return num(s.meters) ? `${fmtInt(s.meters)} m` : `${num(s.minutes)}′ agua`;
+            if (s.type === 'gym') return `${num(s.minutes)}′ gym`;
+            return `${num(s.minutes)}′ ${escapeHtml(s.label || 'otro')}`;
+        }).join(' · ') || 'sin entreno';
+    }
+
+    // ==========================================================
     // ESTADO
     // ==========================================================
     const cloneSlots = slots => slots.map(s => ({ ...s }));
@@ -1163,6 +1423,8 @@
     let mealSlots = cloneSlots(templateSlots);         // comidas del día abierto
     let mealsState = {};
     let currentDate = todayLocalISO();                 // día abierto en "Hoy"
+    let sessions = [];                                 // entrenos del día abierto
+    let energy = null;                                 // desglose del gasto del día abierto
     let saveTimer = null;
     let targets = { kcal: 0, c: 0, p: 0, f: 0, weight: 80 };
     let editingFoodId = null;   // alimento abierto en el modal para editar
@@ -1268,12 +1530,40 @@
 
     function saveProfile() {
         const p = readJSON(STORAGE_KEY_PROFILE, {}) || {};
-        ['sex', 'age', 'height', 'specialty', 'goal'].forEach(k => { p[k] = $(k).value; });
-        // Peso y entreno "actuales" solo cambian al editar hoy o días futuros, no al revisar días pasados
+        PROFILE_FIELDS.forEach(k => { p[k] = $(k).value; });
+        // Peso y entrenos "habituales" solo cambian al editar hoy o días futuros, no al revisar días pasados
         if (currentDate >= todayLocalISO()) {
-            ['weight', 'dayType', 'swimMin', 'gymMin'].forEach(k => { p[k] = $(k).value; });
+            p.dayType = $('dayType').value;
+            p.sessions = sessions.map(s => ({ ...s }));
+            if (num($('weight').value) >= 30) p.weight = $('weight').value;
+            delete p.swimMin;
+            delete p.gymMin;
         }
         store.setItem(STORAGE_KEY_PROFILE, JSON.stringify(p));
+    }
+
+    // ---------- Peso del día: si no te pesas, se usa el último peso apuntado ----------
+    function lastWeighedBefore(date) {
+        const rec = historyLogs.find(h => h.date < date && h.weighed !== false && num(h.weight) >= 30);
+        return rec ? num(rec.weight) : 0;
+    }
+
+    function fallbackWeight() {
+        const prof = readJSON(STORAGE_KEY_PROFILE, {}) || {};
+        return lastWeighedBefore(currentDate) || num(prof.weight) || 80;
+    }
+
+    function isWeighed() {
+        return num($('weight').value) >= 30;
+    }
+
+    function currentWeight() {
+        return isWeighed() ? num($('weight').value) : fallbackWeight();
+    }
+
+    function getCalibration() {
+        const c = num((readJSON(STORAGE_KEY_PROFILE, {}) || {}).calibration, 1);
+        return c >= 0.7 && c <= 1.35 ? c : 1;
     }
 
     function sortHistory() {
@@ -1287,8 +1577,12 @@
     // ==========================================================
     // DIARIO: cada día se guarda solo, sin botón de "guardar"
     // ==========================================================
+    // Un día se guarda si tiene comidas, notas, peso o un entreno con series/metros
     function dayHasContent() {
-        return mealSlots.some(s => (mealsState[s.id] || []).length > 0) || $('logNotes').value.trim() !== '';
+        return mealSlots.some(s => (mealsState[s.id] || []).length > 0)
+            || $('logNotes').value.trim() !== ''
+            || isWeighed()
+            || sessions.some(s => s.sets.trim() || num(s.meters) > 0);
     }
 
     function buildRecord(date) {
@@ -1297,12 +1591,20 @@
             .filter(s => (mealsState[s.id] || []).length)
             .map(s => `${s.title}: ${mealsState[s.id].map(i => `${i.name} (${i.grams}g)`).join(', ')}`)
             .join(' | ');
+        const sumOf = (type, field) => sessions.filter(s => s.type === type).reduce((a, s) => a + num(s[field]), 0);
         return {
             date,
             weight: targets.weight,
+            weighed: isWeighed(),
             dayType: $('dayType').value,
-            swimMin: num($('swimMin').value),
-            gymMin: num($('gymMin').value),
+            sessions: sessions.map(s => ({ ...s })),
+            swimMin: sumOf('swim', 'minutes'),
+            swimMeters: sumOf('swim', 'meters'),
+            gymMin: sumOf('gym', 'minutes'),
+            otherMin: sumOf('other', 'minutes'),
+            trainingKcal: Math.round(energy.training),
+            maintRaw: Math.round(energy.base + energy.training), // estimación sin ajuste, para calibrar
+            calibration: energy.calibration,
             goal: $('goal').value,
             kcalReal: totals.kcal, kcalTarget: targets.kcal,
             cReal: totals.c, cTarget: targets.c,
@@ -1388,26 +1690,29 @@
         const setIf = (id, v) => { if (v !== undefined && v !== null && v !== '') $(id).value = v; };
 
         if (rec) {
-            setIf('weight', num(rec.weight) || prof.weight);
+            $('weight').value = rec.weighed !== false && num(rec.weight) >= 30 ? num(rec.weight) : '';
             setIf('dayType', rec.dayType);
-            $('swimMin').value = num(rec.swimMin);
-            $('gymMin').value = num(rec.gymMin);
+            sessions = Array.isArray(rec.sessions)
+                ? sanitizeSessions(rec.sessions)
+                : legacySessions(rec.dayType, rec.swimMin, rec.gymMin);
             $('logNotes').value = rec.notes || '';
             const slots = sanitizeMealSlots(rec.mealSlotsSnapshot);
             mealSlots = slots.length ? slots : cloneSlots(templateSlots);
             mealsState = sanitizeMeals(rec.mealsSnapshot);
         } else {
-            // Valores habituales del perfil o, si aún no hay, los de por defecto de la página
-            const defaultOf = el => el.tagName === 'SELECT'
-                ? ([...el.options].find(o => o.defaultSelected) || el.options[0]).value
-                : el.defaultValue;
-            ['weight', 'dayType', 'swimMin', 'gymMin'].forEach(k => setIf(k, prof[k] ?? defaultOf($(k))));
+            // Entrenos y tipo de jornada habituales; el peso vacío hasta que te peses
+            const sel = $('dayType');
+            setIf('dayType', prof.dayType ?? ([...sel.options].find(o => o.defaultSelected) || sel.options[0]).value);
+            $('weight').value = '';
+            sessions = templateSessions(prof);
             $('logNotes').value = '';
             mealSlots = cloneSlots(templateSlots);
             mealsState = {};
         }
+        $('weight').placeholder = `${fallbackWeight().toFixed(1)}`;
 
         renderMeals();
+        renderSessions();
         recalculateTargets();
         updateDateNav();
         updateSaveIndicator();
@@ -1426,8 +1731,8 @@
         currentDate = draft.date;
         $('logDate').value = draft.date;
         if (draft.dayType) $('dayType').value = draft.dayType;
-        if (draft.swimMin !== undefined && draft.swimMin !== '') $('swimMin').value = draft.swimMin;
-        if (draft.gymMin !== undefined && draft.gymMin !== '') $('gymMin').value = draft.gymMin;
+        sessions = legacySessions(draft.dayType, draft.swimMin, draft.gymMin);
+        $('weight').value = '';
         $('logNotes').value = draft.notes || '';
         mealSlots = cloneSlots(templateSlots);
         mealsState = meals;
@@ -1443,32 +1748,32 @@
     // ==========================================================
     // OBJETIVOS DEL DÍA
     // ==========================================================
-    function recalculateTargets() {
+    // Gasto del día: base (basal × actividad) + extra de cada entreno, × ajuste por tus datos, ± objetivo
+    function computeEnergy(weight) {
         const sex = $('sex').value;
         const age = num($('age').value, 20) || 20;
-        const weight = Math.max(30, num($('weight').value, 80) || 80);
         const height = num($('height').value, 185) || 185;
-        const specialty = $('specialty').value;
-        const dayType = $('dayType').value;
-        const swimMin = Math.max(0, num($('swimMin').value));
-        const gymMin = Math.max(0, num($('gymMin').value));
+        const activity = clamp(num($('activity').value, 1.4) || 1.4, 1.2, 1.9);
         const goal = $('goal').value;
 
-        // Gasto base (Mifflin-St Jeor × factor de actividad diaria)
-        const bmr = 10 * weight + 6.25 * height - 5 * age + (sex === 'M' ? 5 : -161);
-        const baseKcal = bmr * 1.45;
+        const bmr = 10 * weight + 6.25 * height - 5 * age + (sex === 'M' ? 5 : -161); // Mifflin-St Jeor
+        const base = bmr * activity;
+        const perSession = sessions.map(s => ({ id: s.id, type: s.type, ...sessionKcal(s, weight) }));
+        const training = perSession.reduce((a, s) => a + s.kcal, 0);
+        const calibration = getCalibration();
+        const maint = (base + training) * calibration;
+        const goalAdj = goal === 'surplus' ? 300 : goal === 'cut' ? -300 : 0;
+        return { bmr, activity, base, perSession, training, calibration, maint, goalAdj, total: maint + goalAdj };
+    }
 
-        let swimMET = 9.5;
-        if (dayType === 'Doble Sesión Agua' || dayType === 'Sesión Única Intensa') swimMET = 10.5;
-        if (dayType === 'Tapering' || dayType === 'Descanso') swimMET = 7.0;
+    function recalculateTargets() {
+        const weight = currentWeight();
+        const specialty = $('specialty').value;
+        const dayType = $('dayType').value;
+        const goal = $('goal').value;
 
-        // MET netos (MET − 1): el gasto en reposo de esos minutos ya está en el gasto base
-        const swimKcal = ((swimMET - 1) * 3.5 * weight / 200) * swimMin;
-        const gymKcal = ((6.0 - 1) * 3.5 * weight / 200) * gymMin;
-
-        let totalKcal = baseKcal + swimKcal + gymKcal;
-        if (goal === 'surplus') totalKcal += 300;
-        if (goal === 'cut') totalKcal -= 300;
+        energy = computeEnergy(weight);
+        const totalKcal = energy.total;
 
         const protFactor = goal === 'cut' ? 2.3 : (specialty === 'distance' ? 1.9 : 2.1);
         const carbByDay = {
@@ -1501,9 +1806,163 @@
             kcal: calcKcal(Math.round(c), Math.round(p), Math.round(f))
         };
 
-        renderRecommendations(weight, dayType, swimMin + gymMin);
+        paintEnergy();
+        renderRecommendations(weight, dayType, sessions.reduce((a, s) => a + num(s.minutes), 0));
         saveProfile();
+        updateCalibrationInfo();
         updateSummaryUI();
+    }
+
+    // Muestra el gasto de cada entreno y de dónde sale el objetivo del día
+    function paintEnergy() {
+        energy.perSession.forEach(ps => {
+            const card = document.querySelector(`.session[data-sid="${ps.id}"]`);
+            if (!card) return;
+            card.querySelector('.session-kcal').textContent = `~${fmtInt(ps.kcal)} kcal`;
+            card.querySelector('.session-method').textContent = `Cálculo ${ps.how}`;
+        });
+
+        const byType = { swim: 0, gym: 0, other: 0 };
+        energy.perSession.forEach(ps => { byType[ps.type] += ps.kcal; });
+        const parts = [`base <strong>${fmtInt(energy.base)}</strong>`];
+        if (byType.swim) parts.push(`agua <strong>${fmtInt(byType.swim)}</strong>`);
+        if (byType.gym) parts.push(`gimnasio <strong>${fmtInt(byType.gym)}</strong>`);
+        if (byType.other) parts.push(`otros <strong>${fmtInt(byType.other)}</strong>`);
+
+        let html = energy.calibration !== 1
+            ? `🔥 Gasto estimado: (${parts.join(' + ')}) × <strong>${energy.calibration.toFixed(2)}</strong> ajuste por tus datos`
+            : `🔥 Gasto estimado: ${parts.join(' + ')}`;
+        html += ` = <strong>${fmtInt(energy.maint)} kcal</strong>`;
+        if (energy.goalAdj) html += ` ${energy.goalAdj > 0 ? '+' : '−'} ${Math.abs(energy.goalAdj)} por tu objetivo`;
+        if (!isWeighed()) html += `<br><span style="font-size:0.74rem;">Con tu último peso (${fallbackWeight().toFixed(1)} kg). Pésate y escríbelo arriba para afinar.</span>`;
+        $('energyBreakdown').innerHTML = html;
+    }
+
+    // ---------- Tarjetas de entreno ----------
+    function optionsHtml(map, selected) {
+        return Object.entries(map)
+            .map(([k, v]) => `<option value="${k}"${k === selected ? ' selected' : ''}>${v.label}</option>`)
+            .join('');
+    }
+
+    function renderSessions() {
+        const c = $('sessionsContainer');
+        c.innerHTML = '';
+        if (!sessions.length) {
+            c.innerHTML = '<p class="muted small" style="margin-bottom:10px;">Sin entrenos: día de descanso.</p>';
+            return;
+        }
+        sessions.forEach(s => c.appendChild(buildSessionCard(s)));
+    }
+
+    function buildSessionCard(s) {
+        const el = document.createElement('div');
+        el.className = 'session';
+        el.dataset.sid = s.id;
+        const t = SESSION_TYPES[s.type];
+        const minutesField = `<div><label>Minutos</label><input type="number" data-f="minutes" value="${s.minutes || ''}" min="0" step="5" inputmode="numeric" placeholder="0"></div>`;
+
+        let fields;
+        if (s.type === 'swim') {
+            fields = `
+                <div class="span-all">
+                    <label>Series (opcional: suma los metros sola)</label>
+                    <input type="text" data-f="sets" value="${escapeHtml(s.sets)}" placeholder="Ej: 400 + 8x100 c/1:30 + 4x50 piernas + 200" autocomplete="off">
+                    <div class="sets-hint" data-hint></div>
+                </div>
+                <div><label>Metros</label><input type="number" data-f="meters" value="${s.meters || ''}" min="0" step="50" inputmode="numeric" placeholder="—"></div>
+                ${minutesField}
+                <div><label>Estilo</label><select data-f="stroke">${optionsHtml(STROKES, s.stroke)}</select></div>`;
+        } else if (s.type === 'gym') {
+            fields = `
+                <div class="span-2"><label>Tipo de sesión</label><select data-f="gymType">${optionsHtml(GYM_TYPES, s.gymType)}</select></div>
+                ${minutesField}`;
+        } else {
+            fields = `
+                <div class="span-2"><label>Actividad</label><input type="text" data-f="label" value="${escapeHtml(s.label)}" placeholder="Correr, bici, waterpolo…" maxlength="40"></div>
+                ${minutesField}`;
+        }
+
+        el.innerHTML = `
+            <div class="session-head">
+                <span class="session-title">${t.icon} ${t.label}</span>
+                <span class="session-kcal"></span>
+                <button class="icon-btn" data-act="remove" title="Quitar este entreno" aria-label="Quitar este entreno">✕</button>
+            </div>
+            <div class="session-grid">
+                ${fields}
+                <div class="span-all rpe-row">
+                    <label>Intensidad: <strong data-rpe-label></strong></label>
+                    <input type="range" data-f="rpe" min="1" max="10" step="1" value="${s.rpe}" aria-label="Intensidad del 1 al 10">
+                </div>
+            </div>
+            <div class="session-method"></div>`;
+
+        const rpeText = el.querySelector('[data-rpe-label]');
+        const paintRpe = () => { rpeText.textContent = `${s.rpe}/10 · ${rpeLabel(s.rpe)}`; };
+        paintRpe();
+
+        const hint = el.querySelector('[data-hint]');
+        const metersInput = el.querySelector('[data-f="meters"]');
+        const paintHint = () => {
+            if (!hint) return;
+            const m = parseSetsMeters(s.sets);
+            hint.textContent = m
+                ? `= ${fmtInt(m)} m`
+                : (s.sets.trim() ? 'No encuentro metros en el texto: escríbelos en "Metros".' : '');
+            hint.style.color = m ? '' : 'var(--muted)';
+        };
+        paintHint();
+
+        el.querySelectorAll('[data-f]').forEach(input => {
+            input.addEventListener(input.tagName === 'SELECT' ? 'change' : 'input', () => {
+                const f = input.dataset.f;
+                if (f === 'sets') {
+                    s.sets = input.value.slice(0, 300);
+                    const m = parseSetsMeters(s.sets);
+                    // Las series rellenan "Metros", salvo que hayas escrito tú los metros a mano
+                    if (m && (s.metersFromSets || !num(s.meters))) {
+                        s.meters = m;
+                        s.metersFromSets = true;
+                        metersInput.value = m;
+                    } else if (!m && s.metersFromSets) {
+                        s.meters = 0;
+                        metersInput.value = '';
+                    }
+                    paintHint();
+                } else if (f === 'meters') {
+                    s.meters = clamp(num(input.value), 0, 30000);
+                    s.metersFromSets = false;
+                } else if (f === 'minutes') {
+                    s.minutes = clamp(num(input.value), 0, 600);
+                } else if (f === 'rpe') {
+                    s.rpe = clamp(Math.round(num(input.value, 6)), 1, 10);
+                    paintRpe();
+                } else {
+                    s[f] = input.value;
+                }
+                recalculateTargets();
+                scheduleSave();
+            });
+        });
+
+        el.querySelector('[data-act="remove"]').addEventListener('click', () => {
+            sessions = sessions.filter(x => x.id !== s.id);
+            renderSessions();
+            recalculateTargets();
+            scheduleSave();
+        });
+        return el;
+    }
+
+    function addSession(type) {
+        const defaults = { swim: { minutes: 90, rpe: 6 }, gym: { minutes: 60, rpe: 6 }, other: { minutes: 45, rpe: 5 } };
+        const s = sanitizeSession({ type, ...defaults[type] });
+        sessions.push(s);
+        renderSessions();
+        recalculateTargets();
+        scheduleSave();
+        document.querySelector(`.session[data-sid="${s.id}"] input`)?.focus();
     }
 
     function renderRecommendations(weight, dayType, trainingMin) {
@@ -2157,7 +2616,106 @@ Responde solo con JSON: {"c": 0, "p": 0, "f": 0, "kcal": 0, "defaultG": 100}`;
     function renderHistory() {
         renderHistoryStats();
         renderHistoryChart();
+        renderCalibrationCard();
         renderHistoryTable();
+    }
+
+    const statHtml = (label, value, sub = '') =>
+        `<div class="stat"><div class="kpi-label">${label}</div><div class="stat-value">${value}</div><div class="kpi-sub">${sub}</div></div>`;
+
+    // ==========================================================
+    // CALIBRACIÓN: tu gasto real a partir de lo que comes y de cómo cambia tu peso
+    // ==========================================================
+    const CALIB = { windowDays: 28, minFoodDays: 12, minWeighIns: 4, minSpanDays: 12, kcalPerKg: 7700 };
+
+    function analyzeCalibration() {
+        const today = todayLocalISO();
+        const from = addDays(today, -CALIB.windowDays);
+        // Hoy no cuenta: el día aún no ha terminado
+        const win = historyLogs.filter(h => h.date >= from && h.date < today);
+        const fed = win.filter(h => num(h.kcalReal) > 0);
+        const weighs = win
+            .filter(h => h.weighed === true && num(h.weight) >= 30)
+            .sort((a, b) => a.date.localeCompare(b.date));
+        const dayIdx = d => Math.round((new Date(`${d}T12:00`) - new Date(`${from}T12:00`)) / 86400000);
+        const span = weighs.length > 1 ? dayIdx(weighs[weighs.length - 1].date) - dayIdx(weighs[0].date) : 0;
+        const res = { fedDays: fed.length, weighIns: weighs.length, span, ready: false };
+        if (fed.length < CALIB.minFoodDays || weighs.length < CALIB.minWeighIns || span < CALIB.minSpanDays) return res;
+
+        // Tendencia del peso (kg/día) con mínimos cuadrados: un pesaje raro pesa poco
+        const xs = weighs.map(h => dayIdx(h.date));
+        const ys = weighs.map(h => num(h.weight));
+        const mean = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+        const mx = mean(xs), my = mean(ys);
+        const slope = xs.reduce((a, x, k) => a + (x - mx) * (ys[k] - my), 0) / xs.reduce((a, x) => a + (x - mx) ** 2, 0);
+
+        const avgIntake = mean(fed.map(h => num(h.kcalReal)));
+        // Si comes X y no cambias de peso, gastas X. Si bajas, gastas más de lo que comes (7.700 kcal ≈ 1 kg)
+        const realTDEE = avgIntake - slope * CALIB.kcalPerKg;
+        const goalAdjOf = g => (g === 'surplus' ? 300 : g === 'cut' ? -300 : 0);
+        const estRaw = mean(fed.map(h => num(h.maintRaw) || (num(h.kcalTarget) - goalAdjOf(h.goal)) / (num(h.calibration) || 1)));
+        if (!(estRaw > 0)) return res;
+        const ratio = realTDEE / estRaw;
+        return { ...res, ready: true, slopeWeek: slope * 7, avgIntake, realTDEE, estRaw, ratio, suggested: clamp(ratio, 0.75, 1.3) };
+    }
+
+    function renderCalibrationCard() {
+        const el = $('calibrationCard');
+        const a = analyzeCalibration();
+        const cur = getCalibration();
+        const bar = v => `<div class="calib-progress"><div style="width:${Math.round(clamp(v, 0, 1) * 100)}%"></div></div>`;
+
+        if (!a.ready) {
+            el.innerHTML = `
+                <p class="small" style="margin-bottom:10px;">Las fórmulas son una estimación (±15–20%). Para saber lo que gastas <strong>tú</strong>, la app compara lo que comes con cómo cambia tu peso. Necesita, en las últimas 4 semanas:</p>
+                <div class="small">📋 Días con <strong>todas</strong> tus comidas apuntadas: ${a.fedDays} / ${CALIB.minFoodDays}</div>
+                ${bar(a.fedDays / CALIB.minFoodDays)}
+                <div class="small">⚖️ Pesajes (escribe tu peso en "Hoy"): ${a.weighIns} / ${CALIB.minWeighIns}, repartidos en ${CALIB.minSpanDays} días o más</div>
+                ${bar(Math.min(a.weighIns / CALIB.minWeighIns, a.span / CALIB.minSpanDays))}
+                <p class="muted small">Pésate por la mañana, en ayunas y después de ir al baño. Apunta todo lo que comas: si se te olvida algo, parecerá que gastas menos de lo real.</p>
+                ${cur !== 1 ? `<p class="small">Ajuste aplicado ahora: ×${cur.toFixed(2)} <button class="link-btn" data-calib="reset">Quitar</button></p>` : ''}`;
+        } else {
+            const diffPct = Math.round((a.ratio - 1) * 100);
+            const fits = Math.abs(diffPct) <= 3;
+            const sign = v => (v > 0 ? '+' : '');
+            el.innerHTML = `
+                <div class="stats-grid">
+                    ${statHtml('Comes de media', `${fmtInt(a.avgIntake)} kcal`, `${a.fedDays} días apuntados`)}
+                    ${statHtml('Tu peso', `${sign(a.slopeWeek)}${a.slopeWeek.toFixed(2)} kg/sem`, `${a.weighIns} pesajes`)}
+                    ${statHtml('Gasto real', `${fmtInt(a.realTDEE)} kcal`, 'según tus datos')}
+                    ${statHtml('La app calculaba', `${fmtInt(a.estRaw)} kcal`, `${sign(diffPct)}${diffPct}% de diferencia`)}
+                </div>
+                <p class="small" style="margin-bottom:10px;">${fits
+                    ? '✅ El cálculo de la app ya encaja con tus datos.'
+                    : `Tu gasto real es un ${Math.abs(diffPct)}% ${diffPct > 0 ? 'mayor' : 'menor'} que el calculado. Aplica el ajuste para que todos tus objetivos lo tengan en cuenta.`}
+                    ${a.ratio !== a.suggested ? ' (La diferencia es muy grande: revisa que apuntas todo lo que comes. Se limita el ajuste por seguridad.)' : ''}</p>
+                <div class="row">
+                    ${!fits && Math.abs(a.suggested - cur) > 0.005 ? `<button class="btn-green btn-sm" data-calib="apply">Aplicar ajuste ×${a.suggested.toFixed(2)}</button>` : ''}
+                    ${cur !== 1 ? `<button class="btn-secondary btn-sm" data-calib="reset">Quitar ajuste (ahora ×${cur.toFixed(2)})</button>` : ''}
+                </div>
+                <p class="muted small" style="margin-top:8px;">Revísalo cada pocas semanas: si cambias de etapa de entrenamiento, tu gasto cambia.</p>`;
+        }
+
+        el.querySelector('[data-calib="apply"]')?.addEventListener('click', () => setCalibration(a.suggested));
+        el.querySelector('[data-calib="reset"]')?.addEventListener('click', () => setCalibration(1));
+    }
+
+    function setCalibration(value) {
+        const prof = readJSON(STORAGE_KEY_PROFILE, {}) || {};
+        prof.calibration = Math.round(value * 100) / 100;
+        store.setItem(STORAGE_KEY_PROFILE, JSON.stringify(prof));
+        recalculateTargets();
+        scheduleSave();
+        renderCalibrationCard();
+        showToast(value === 1 ? 'Ajuste quitado' : `Ajuste ×${prof.calibration.toFixed(2)} aplicado a tus objetivos`);
+    }
+
+    function updateCalibrationInfo() {
+        const cur = getCalibration();
+        $('calibrationInfo').innerHTML = cur !== 1
+            ? `🔬 Ajuste por tus datos: <strong>×${cur.toFixed(2)}</strong> <button class="link-btn" id="btnResetCalibProfile">Quitar</button>`
+            : '<span class="muted">🔬 Sin ajuste por tus datos todavía (se calcula en Histórico → Tu gasto real).</span>';
+        $('btnResetCalibProfile')?.addEventListener('click', () => setCalibration(1));
     }
 
     function renderHistoryStats() {
@@ -2174,18 +2732,19 @@ Responde solo con JSON: {"c": 0, "p": 0, "f": 0, "kcal": 0, "defaultG": 100}`;
         const inRange = pcts.filter(p => p >= 90 && p <= 110).length;
         const protKg = logged.length ? logged.reduce((a, h) => a + num(h.pReal) / (num(h.weight) || 1), 0) / logged.length : 0;
         const chrono = [...historyLogs].reverse();
-        const w0 = num(chrono[0].weight), w1 = num(chrono[n - 1].weight);
+        const weighed = chrono.filter(h => h.weighed !== false && num(h.weight) >= 30);
+        const w0 = weighed.length ? num(weighed[0].weight) : 0;
+        const w1 = weighed.length ? num(weighed[weighed.length - 1].weight) : 0;
         const dw = round1(w1 - w0);
-
-        const stat = (label, value, sub = '') =>
-            `<div class="stat"><div class="kpi-label">${label}</div><div class="stat-value">${value}</div><div class="kpi-sub">${sub}</div></div>`;
+        const swimM = historyLogs.filter(h => h.date >= addDays(todayLocalISO(), -6)).reduce((a, h) => a + num(h.swimMeters), 0);
 
         el.innerHTML =
-            stat('Días registrados', n, `desde el ${formatDateES(chrono[0].date)}`) +
-            stat('Energía media', `<span class="status-pill status-${statusOf(avgPct)}" style="font-size:1rem;">${avgPct}%</span>`, 'del objetivo de kcal') +
-            stat('Días en objetivo', `${inRange} / ${pcts.length}`, 'entre 90% y 110% de las kcal') +
-            stat('Proteína media', `${protKg.toFixed(1)} g/kg`, 'objetivo habitual 1,9–2,3') +
-            stat('Peso actual', `${w1.toFixed(1)} kg`, n > 1 ? `${dw > 0 ? '+' : ''}${dw.toFixed(1)} kg desde el inicio` : '');
+            statHtml('Días registrados', n, `desde el ${formatDateES(chrono[0].date)}`) +
+            statHtml('Energía media', `<span class="status-pill status-${statusOf(avgPct)}" style="font-size:1rem;">${avgPct}%</span>`, 'del objetivo de kcal') +
+            statHtml('Días en objetivo', `${inRange} / ${pcts.length}`, 'entre 90% y 110% de las kcal') +
+            statHtml('Proteína media', `${protKg.toFixed(1)} g/kg`, 'objetivo habitual 1,9–2,3') +
+            statHtml('Metros esta semana', `${fmtInt(swimM)} m`, 'últimos 7 días') +
+            statHtml('Peso actual', w1 ? `${w1.toFixed(1)} kg` : '—', weighed.length > 1 ? `${dw > 0 ? '+' : ''}${dw.toFixed(1)} kg desde el inicio` : 'apunta tu peso en "Hoy"');
     }
 
     // Gráfica SVG sin librerías: kcal consumidas (barras) vs objetivo (marca) de los últimos 30 días guardados
@@ -2256,8 +2815,8 @@ Responde solo con JSON: {"c": 0, "p": 0, "f": 0, "kcal": 0, "defaultG": 100}`;
             tr.title = h.mealsTextSummary || '';
             tr.innerHTML = `
                 <td data-label="" class="nowrap row-title"><strong>${dateText}</strong></td>
-                <td data-label="Jornada">${escapeHtml(h.dayType)}<div class="muted small">${num(h.swimMin)}′ agua · ${num(h.gymMin)}′ gym</div></td>
-                <td data-label="Peso" class="nowrap">${num(h.weight).toFixed(1)} kg</td>
+                <td data-label="Jornada">${escapeHtml(h.dayType)}<div class="muted small">${sessionsSummary(h)}${num(h.trainingKcal) ? ` · ~${fmtInt(h.trainingKcal)} kcal` : ''}</div></td>
+                <td data-label="Peso" class="nowrap">${h.weighed === false ? `<span class="muted" title="No te pesaste: es tu último peso">${num(h.weight).toFixed(1)} kg</span>` : `${num(h.weight).toFixed(1)} kg`}</td>
                 <td data-label="Kcal" class="nowrap"><strong>${kR}</strong> / ${kT}</td>
                 <td data-label="Cumplimiento"><span class="status-pill status-${statusOf(pct)}">${pct}%</span></td>
                 ${macro('Carbs', h.cReal, 'c-carb')}${macro('Prot', h.pReal, 'c-prot')}${macro('Grasas', h.fReal, 'c-fat')}
@@ -2288,8 +2847,8 @@ Responde solo con JSON: {"c": 0, "p": 0, "f": 0, "kcal": 0, "defaultG": 100}`;
             if (/^[=+\-@]/.test(s)) s = "'" + s;
             return `"${s.replace(/"/g, '""')}"`;
         };
-        const headers = ['Fecha', 'Peso (kg)', 'Jornada', 'Agua (min)', 'Gym (min)',
-            'Kcal', 'Kcal objetivo', '% kcal',
+        const headers = ['Fecha', 'Peso (kg)', 'Pesado', 'Jornada', 'Agua (min)', 'Agua (m)', 'Gym (min)', 'Otros (min)',
+            'Gasto entrenos (kcal)', 'Kcal', 'Kcal objetivo', '% kcal',
             'Carbs (g)', 'Carbs objetivo (g)', 'Carbs (g/kg)',
             'Proteína (g)', 'Proteína objetivo (g)', 'Proteína (g/kg)',
             'Grasas (g)', 'Grasas objetivo (g)', 'Grasas (g/kg)',
@@ -2298,7 +2857,8 @@ Responde solo con JSON: {"c": 0, "p": 0, "f": 0, "kcal": 0, "defaultG": 100}`;
             const w = num(h.weight) || 1;
             const pct = num(h.kcalTarget) > 0 ? Math.round(num(h.kcalReal) / num(h.kcalTarget) * 100) : 0;
             return [
-                h.date, dec(h.weight), txt(h.dayType), num(h.swimMin), num(h.gymMin),
+                h.date, dec(h.weight), h.weighed === false ? 'no' : 'sí', txt(h.dayType),
+                num(h.swimMin), num(h.swimMeters), num(h.gymMin), num(h.otherMin), num(h.trainingKcal),
                 num(h.kcalReal), num(h.kcalTarget), pct,
                 num(h.cReal), num(h.cTarget), dec(num(h.cReal) / w),
                 num(h.pReal), num(h.pTarget), dec(num(h.pReal) / w),
@@ -2362,11 +2922,13 @@ Responde solo con JSON: {"c": 0, "p": 0, "f": 0, "kcal": 0, "defaultG": 100}`;
                 if (hist) { historyLogs = hist; sortHistory(); }
                 if (data.profile && typeof data.profile === 'object') {
                     const prof = { ...(readJSON(STORAGE_KEY_PROFILE, {}) || {}) };
-                    PROFILE_FIELDS.concat(['dayType', 'swimMin', 'gymMin']).forEach(k => {
+                    PROFILE_FIELDS.concat(['weight', 'dayType', 'swimMin', 'gymMin']).forEach(k => {
                         if (data.profile[k] !== undefined && data.profile[k] !== '') prof[k] = String(data.profile[k]);
                     });
+                    if (Array.isArray(data.profile.sessions)) prof.sessions = sanitizeSessions(data.profile.sessions);
+                    if (num(data.profile.calibration) >= 0.7 && num(data.profile.calibration) <= 1.35) prof.calibration = num(data.profile.calibration);
                     store.setItem(STORAGE_KEY_PROFILE, JSON.stringify(prof));
-                    ['sex', 'age', 'height', 'specialty', 'goal'].forEach(k => { if (prof[k]) $(k).value = prof[k]; });
+                    PROFILE_FIELDS.forEach(k => { if (prof[k]) $(k).value = prof[k]; });
                 }
                 const slots = sanitizeMealSlots(data.mealSlots);
                 if (slots.length) { mealSlots = slots; saveSlots(); }
@@ -2427,11 +2989,13 @@ Responde solo con JSON: {"c": 0, "p": 0, "f": 0, "kcal": 0, "defaultG": 100}`;
         document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 
         // Datos del día y perfil → recalcular objetivos y guardar el día
-        ['weight', 'dayType', 'swimMin', 'gymMin', 'sex', 'age', 'height', 'specialty', 'goal'].forEach(id => {
-            const evt = ['dayType', 'sex', 'specialty', 'goal'].includes(id) ? 'change' : 'input';
+        ['weight', 'dayType', 'sex', 'age', 'height', 'specialty', 'goal', 'activity'].forEach(id => {
+            const evt = $(id).tagName === 'SELECT' ? 'change' : 'input';
             $(id).addEventListener(evt, () => { recalculateTargets(); scheduleSave(); });
         });
         $('logNotes').addEventListener('input', scheduleSave);
+        document.querySelectorAll('[data-add-session]').forEach(b =>
+            b.addEventListener('click', () => addSession(b.dataset.addSession)));
 
         // Navegar por los días del diario
         $('logDate').addEventListener('change', () => {
