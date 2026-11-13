@@ -648,3 +648,14 @@ input[type="time"] { min-height: 48px; }
 .pb-input { width: 96px !important; }
 
 .s-grid input[type="time"] { min-height: 0; padding: 10px 8px; }
+
+/* ---------- Añadir comida y platos ---------- */
+button.meal-add { width: 100%; color: var(--accent); font-weight: 600; font-size: 14px; padding: 13px 16px; text-align: left; }
+button.meal-add .ico { color: inherit; width: 18px; height: 18px; }
+button.meal-add:active { background: var(--surface-2); }
+.modal-body .search input { background: var(--surface-2); }
+.modal-header .icon-btn[hidden] + h3 { margin-left: 0; }
+.qty-name { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.qty-preview { background: var(--surface-2); border-radius: 14px; padding: 12px 14px; font-variant-numeric: tabular-nums; }
+.qty-preview strong { font-weight: 700; }
+#addResults .list-row, #dishSearchResults .list-row { min-height: 56px; }

@@ -28,6 +28,7 @@ function init() {
     $('logNotes').addEventListener('input', scheduleSave);
     $('btnAddSession').addEventListener('click', chooseSessionType);
     initSleepUI();
+    initAddFoodUI();
     $('btnDeleteFood').addEventListener('click', () => { if (editingFoodId) deleteFood(editingFoodId); });
     // Tocar el título del día abre el calendario
     $('logDate').addEventListener('click', e => { try { e.target.showPicker(); } catch (err) {} });

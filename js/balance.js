@@ -140,10 +140,14 @@ function expenditureAnalysis(history, today, estimate) {
     const mx = mean(xs);
     const slopeSe = scatter / Math.sqrt(xs.reduce((a, x) => a + (x - mx) ** 2, 0));
 
-    const avgIntake = mean(fed.map(h => num(h.kcalReal)));
+    // Un día en el que más del 40 % de las kcal son estimaciones (≈) cuenta la mitad
+    const wOf = h => (num(h.estKcal) > 0.4 * num(h.kcalReal) ? 0.5 : 1);
+    const wSum = fed.reduce((a, h) => a + wOf(h), 0);
+    const wMean = f => fed.reduce((a, h) => a + wOf(h) * f(h), 0) / wSum;
+    const avgIntake = wMean(h => num(h.kcalReal));
     // Si comes X y tu peso no cambia, gastas X. Si bajas, gastas más de lo que comes (7.700 kcal ≈ 1 kg)
     const realTDEE = avgIntake - slope * CALIB.kcalPerKg;
-    const estRaw = mean(fed.map(h => num(estimate(h))));
+    const estRaw = wMean(h => num(estimate(h)));
     if (!(estRaw > 0) || !(realTDEE > 0)) return res;
     const ratio = realTDEE / estRaw;
     return {

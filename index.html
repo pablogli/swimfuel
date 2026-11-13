@@ -125,7 +125,6 @@
                 <button class="text-btn" onclick="openAddMealModal()" data-icon="plus">Añadir</button>
             </div>
             <div id="mealsContainer"></div>
-            <datalist id="foodDatalist"></datalist>
         </section>
 
         <section class="section">
@@ -171,13 +170,22 @@
             <h1>Alimentos</h1>
             <button class="icon-btn accent" onclick="openFoodModal()" aria-label="Nuevo alimento" data-icon="plus"></button>
         </header>
+        <section class="section">
+            <div class="section-head">
+                <h2>Platos</h2>
+                <button class="text-btn" onclick="openDishModal()" data-icon="plus">Nuevo</button>
+            </div>
+            <div class="list" id="dishList"></div>
+        </section>
+
+        <div class="section-head"><h2>Alimentos</h2></div>
         <div class="search">
             <span data-icon="search"></span>
             <input type="search" id="dbSearch" placeholder="Buscar" autocomplete="off">
         </div>
         <div class="list" id="foodList"></div>
         <p class="footnote">
-            Valores por 100 g, como en la etiqueta. Al crear un alimento puedes leer la tabla nutricional con una foto.
+            Valores por 100 g, como en la etiqueta. Al crear un alimento puedes leer la tabla nutricional con una foto. Para lo que no puedes pesar, al añadir una comida hay platos genéricos (≈) y estimación con IA.
             <button class="link-btn" onclick="loadDefaultStarterDB()">Añadir alimentos básicos</button>
         </p>
     </section>
@@ -443,6 +451,21 @@
                 <label for="mFoodDefaultG">Ración habitual (g)</label>
                 <input type="number" id="mFoodDefaultG" step="5" min="1" value="100" inputmode="numeric">
             </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="mFoodUnitName">Unidad (opcional)</label>
+                    <input type="text" id="mFoodUnitName" placeholder="huevo, rebanada…" maxlength="20" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="mFoodUnitG">Gramos por unidad</label>
+                    <input type="number" id="mFoodUnitG" min="0" step="1" inputmode="decimal" placeholder="60">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="mFoodCook">Al cocinarlo, cada gramo en crudo pesa ×</label>
+                <input type="text" id="mFoodCook" inputmode="decimal" maxlength="5" autocomplete="off">
+            </div>
+            <p class="footnote" style="margin-top:-6px;">Sirve para apuntarlo pesado ya cocinado. Lo habitual: arroz ×2,6 · pasta ×2,3 · legumbre seca ×2,5 · carne y pollo ×0,75 · pescado ×0,8. Si lo dejas vacío, la app lo deduce del nombre.</p>
             <p class="footnote" style="margin-top:0;">Las kcal se calculan solas (4·C + 4·P + 9·G) hasta que escribas el valor de la etiqueta.</p>
         </div>
         <div class="modal-footer">
@@ -479,6 +502,136 @@
         </div>
         <div class="modal-footer">
             <button class="btn-primary" onclick="confirmAddMeal()">Añadir comida</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== HOJA: AÑADIR A UNA COMIDA ===================== -->
+<div class="modal-overlay" id="modalAdd">
+    <div class="modal-box">
+        <div class="grabber"></div>
+        <div class="modal-header">
+            <div class="row" style="flex-wrap:nowrap; gap:2px; min-width:0;">
+                <button class="icon-btn" id="addBack" aria-label="Volver al buscador" data-icon="chevronLeft" hidden style="margin-left:-10px;"></button>
+                <h3 id="addTitle" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></h3>
+            </div>
+            <button class="icon-btn" onclick="closeModal('modalAdd')" aria-label="Cerrar" data-icon="close"></button>
+        </div>
+        <div class="modal-body">
+            <div id="addViewSearch">
+                <div class="search">
+                    <span data-icon="search"></span>
+                    <input type="search" id="addSearch" placeholder="Buscar alimento o plato" autocomplete="off">
+                </div>
+                <div class="chips" style="margin:0 0 6px;">
+                    <button type="button" class="chip" id="btnAddEstimate" style="color:var(--accent); background:var(--accent-soft);">No puedo pesarlo: estimar</button>
+                    <button type="button" class="chip" id="btnAddQuick">Kcal a mano</button>
+                </div>
+                <div class="section-title" id="addListTitle"></div>
+                <div class="list" id="addResults"></div>
+            </div>
+
+            <div id="addViewQty" hidden>
+                <div class="qty-name" id="qtyName"></div>
+                <div class="small muted" id="qtyPer100" style="margin-bottom:14px;"></div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="qtyAmount">Cantidad</label>
+                        <input type="number" id="qtyAmount" min="0" step="any" inputmode="decimal">
+                    </div>
+                    <div class="form-group">
+                        <label for="qtyUnit">Medida</label>
+                        <select id="qtyUnit"></select>
+                    </div>
+                </div>
+                <div class="qty-preview" id="qtyPreview"></div>
+                <p class="footnote" id="qtyNote"></p>
+            </div>
+
+            <div id="addViewEstimate" hidden>
+                <div class="form-group">
+                    <label for="estText">Describe el plato y la cantidad</label>
+                    <textarea id="estText" rows="3" maxlength="400" placeholder="Carne picada con tomate y arroz blanco, un plato hondo lleno"></textarea>
+                </div>
+                <div class="row" style="margin-bottom:10px;">
+                    <label class="btn-secondary btn-sm" style="cursor:pointer; margin:0; color:var(--text);">
+                        <span data-icon="camera" style="display:inline-flex;"></span>Foto
+                        <input type="file" id="estPhoto" accept="image/*" hidden>
+                    </label>
+                    <span class="small muted" id="estPhotoName" style="flex:1;"></span>
+                    <button class="btn-primary btn-sm" id="estRun">Estimar con IA</button>
+                </div>
+                <div id="estKeyBox" hidden>
+                    <label for="estKey" style="display:flex; justify-content:space-between; gap:8px;">
+                        <span>Clave de Google Gemini (gratuita)</span>
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:none; font-weight:600;">Conseguir</a>
+                    </label>
+                    <input type="password" id="estKey" placeholder="AIza…" autocomplete="off">
+                    <p class="footnote" style="margin-top:6px;">Se guarda solo en este dispositivo. La foto y la descripción se envían a Google únicamente al estimar.</p>
+                </div>
+                <div id="estLoading" hidden style="margin-top:10px;">
+                    <div class="small" style="color:var(--accent);" id="estLoadingText">Estimando…</div>
+                    <div class="pulse"></div>
+                </div>
+                <div id="estResults"></div>
+                <p class="footnote">Sin conexión o sin clave: vuelve al buscador y elige un plato genérico (≈) con su medida casera: plato, cucharón, filete…</p>
+            </div>
+
+            <div id="addViewQuick" hidden>
+                <div class="form-group">
+                    <label for="quickName">Qué es (opcional)</label>
+                    <input type="text" id="quickName" placeholder="Menú del restaurante" maxlength="60" autocomplete="off">
+                </div>
+                <div class="form-row-4">
+                    <div class="form-group"><label for="quickKcal">Kcal</label><input type="number" id="quickKcal" min="0" inputmode="numeric" placeholder="0"></div>
+                    <div class="form-group"><label for="quickC">Hidr.</label><input type="number" id="quickC" min="0" inputmode="decimal" placeholder="0"></div>
+                    <div class="form-group"><label for="quickP">Prot.</label><input type="number" id="quickP" min="0" inputmode="decimal" placeholder="0"></div>
+                    <div class="form-group"><label for="quickF">Grasa</label><input type="number" id="quickF" min="0" inputmode="decimal" placeholder="0"></div>
+                </div>
+                <p class="footnote" style="margin-top:0;">Si solo sabes las kcal, pon solo las kcal (los macros de esa comida no contarán). Si pones los gramos de hidratos, proteína y grasa, las kcal se calculan solas.</p>
+            </div>
+        </div>
+        <div class="modal-footer" id="addFooter" hidden>
+            <button class="btn-primary" id="addConfirm">Añadir</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== HOJA: PLATO ===================== -->
+<div class="modal-overlay" id="modalDish">
+    <div class="modal-box">
+        <div class="grabber"></div>
+        <div class="modal-header">
+            <h3 id="dishModalTitle">Nuevo plato</h3>
+            <button class="icon-btn" onclick="closeModal('modalDish')" aria-label="Cerrar" data-icon="close"></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="dishName">Nombre</label>
+                <input type="text" id="dishName" placeholder="Carne picada con tomate" maxlength="60" autocomplete="off">
+            </div>
+            <div class="section-title">Ingredientes, tal como van a la olla</div>
+            <div class="list" id="dishIngredients"></div>
+            <div class="search" style="margin:10px 0 8px;">
+                <span data-icon="search"></span>
+                <input type="search" id="dishSearch" placeholder="Añadir ingrediente" autocomplete="off">
+            </div>
+            <div class="list" id="dishSearchResults" hidden></div>
+            <div class="form-row" style="margin-top:14px;">
+                <div class="form-group">
+                    <label for="dishCookedG">Peso total cocinado (g)</label>
+                    <input type="number" id="dishCookedG" min="0" inputmode="numeric" placeholder="opcional">
+                </div>
+                <div class="form-group">
+                    <label for="dishPortions">Raciones que salen</label>
+                    <input type="number" id="dishPortions" min="0.25" step="0.5" value="1" inputmode="decimal">
+                </div>
+            </div>
+            <p class="footnote" id="dishSummary" style="margin-top:0;"></p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-danger" id="btnDeleteDish" hidden>Eliminar</button>
+            <button class="btn-primary" id="btnSaveDish">Guardar</button>
         </div>
     </div>
 </div>
@@ -581,7 +734,9 @@
 <script src="js/balance.js"></script>
 <script src="js/core.js"></script>
 <script src="js/today.js"></script>
+<script src="js/foodlib.js"></script>
 <script src="js/foods.js"></script>
+<script src="js/addfood.js"></script>
 <script src="js/history.js"></script>
 <script src="js/sleep.js"></script>
 <script src="js/main.js"></script>

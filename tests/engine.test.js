@@ -387,3 +387,52 @@ test('comer alrededor del entreno: doble sesión, madrugón y descanso', () => {
     eq(fuelPlan([], 80, targets).map(p => p.title), ['Proteína', 'Día de descanso']);
     ok(fuelPlan([{ label: 'Agua', minutes: 90, kcal: 900 }, { label: 'Agua', minutes: 90, kcal: 900 }], 80, targets)[1].text.includes('hasta el siguiente entreno'));
 });
+
+// ---------- Comida ----------
+test('comida: el buscador ignora tildes y mayúsculas y ordena por uso', () => {
+    const entries = [{ name: 'Pasta de trigo (en crudo)', kind: 'food' }, { name: 'Pasta con tomate', kind: 'generic' }, { name: 'Arroz blanco', kind: 'food' }, { name: 'Salmón fresco', kind: 'food' }];
+    eq(searchFoods('SALMON', entries).map(e => e.name), ['Salmón fresco']);
+    eq(searchFoods('pasta', entries).map(e => e.kind), ['food', 'generic']);
+    eq(searchFoods('tomate pasta', entries).length, 1);
+    eq(searchFoods('', entries), []);
+    const usage = usageFromHistory([{ date: '2026-01-02', mealsSnapshot: { m1: [{ name: 'Pasta con tomate', grams: 300 }] } }, { date: '2026-01-01', mealsSnapshot: { m1: [{ name: 'pasta con tomate', grams: 250 }] } }]);
+    eq(usage['pasta con tomate'].count, 2);
+    eq(usage['pasta con tomate'].item.grams, 300);
+    eq(searchFoods('pasta', entries, usage)[0].name, 'Pasta con tomate');
+});
+
+test('comida: factor de cocinado deducido del nombre', () => {
+    eq(guessCookFactor('Arroz blanco / basmati (en crudo)', 360), 2.6);
+    eq(guessCookFactor('Pasta de trigo (en crudo)', 355), 2.3);
+    eq(guessCookFactor('Pechuga de pollo (en crudo)', 115), 0.75);
+    eq(guessCookFactor('Carne picada mixta', 230), 0.75);
+    eq(guessCookFactor('Arroz blanco cocido', 130), 0);
+    eq(guessCookFactor('Lentejas de bote', 90), 0);
+    eq(guessCookFactor('Copos de avena', 375), 0);
+});
+
+test('comida: un plato se reparte por raciones y por 100 g servidos', () => {
+    const dish = sanitizeDish({ name: ' Carne picada con tomate ', portions: 4, cookedG: 800, ingredients: [
+        { name: 'Carne picada', grams: 500, kcal100: 230, c100: 0, p100: 18, f100: 17 },
+        { name: 'Tomate frito', grams: 400, kcal100: 80, c100: 9, p100: 1.5, f100: 4 },
+        { name: 'Aceite', grams: 10, kcal100: 884, c100: 0, p100: 0, f100: 100 }
+    ] });
+    eq(dish.name, 'Carne picada con tomate');
+    const t = dishTotals(dish);
+    near(t.kcal, 1150 + 320 + 88.4, 0.01);
+    eq(t.grams, 800);
+    eq(t.portionG, 200);
+    near(t.per100.kcal, 194.8, 0.1);
+    near(dishTotals({ ...dish, cookedG: 0 }).grams, 910, 0.01);
+    eq(sanitizeDish({ name: '' }), null);
+    eq(sanitizeDishes('x'), []);
+    ok(GENERIC_FOODS.every(g => g.c + g.p + g.f <= 100 && g.units.length && Math.abs(calcKcal(g.c, g.p, g.f) - g.kcal) / g.kcal < 0.2), 'genéricos coherentes');
+});
+
+test('comida: lo apuntado guarda si es estimado y cómo se midió', () => {
+    const i = sanitizeItem({ name: 'Arroz', grams: 96, kcal100: 360, est: 1, note: '250 g cocinado' });
+    eq([i.est, i.note], [true, '250 g cocinado']);
+    eq(sanitizeItem({ name: 'Arroz', grams: 96 }).est, false);
+    const f = sanitizeFood({ name: 'Huevo', kcal: 143, unitName: ' huevo ', unitG: 60, cook: 9 });
+    eq([f.unitName, f.unitG, f.cook], ['huevo', 60, 0]);
+});

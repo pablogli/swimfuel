@@ -23,6 +23,11 @@ function openFoodModal(prefill = null, editId = null) {
     $('mFoodF').value = v.f ?? 0;
     $('mFoodKcal').value = v.kcal ?? 0;
     $('mFoodDefaultG').value = v.defaultG ?? 100;
+    $('mFoodUnitName').value = v.unitName || '';
+    $('mFoodUnitG').value = v.unitG || '';
+    $('mFoodCook').value = v.cook || '';
+    const guess = guessCookFactor(v.name || '', v.kcal);
+    $('mFoodCook').placeholder = guess ? `automático: ×${String(guess).replace('.', ',')}` : 'p. ej. 2,6';
     $('aiBox').open = false;
     clearAiImage();
     loadGeminiApiKey();
@@ -42,6 +47,9 @@ function saveFoodFromModal() {
     const f = Math.max(0, num($('mFoodF').value));
     const kcal = Math.max(0, num($('mFoodKcal').value)) || calcKcal(c, p, f);
     const defaultG = Math.max(1, num($('mFoodDefaultG').value, 100));
+    const unitName = $('mFoodUnitName').value.trim();
+    const unitG = Math.max(0, num($('mFoodUnitG').value));
+    const cook = num(String($('mFoodCook').value).replace(',', '.'));
 
     if (!name) {
         showToast('Escribe el nombre del alimento', COLOR.error);
@@ -59,13 +67,13 @@ function saveFoodFromModal() {
             return;
         }
         food = foodDB.find(x => x.id === editingFoodId);
-        Object.assign(food, { name, kcal, c, p, f, defaultG });
+        Object.assign(food, { name, kcal, c, p, f, defaultG, unitName, unitG, cook: cook >= 0.3 && cook <= 5 ? cook : 0 });
         showToast(`"${name}" actualizado`);
     } else if (sameName) {
-        food = Object.assign(sameName, { name, kcal, c, p, f, defaultG });
+        food = Object.assign(sameName, { name, kcal, c, p, f, defaultG, unitName, unitG, cook: cook >= 0.3 && cook <= 5 ? cook : 0 });
         showToast(`"${name}" ya existía: se han actualizado sus valores`);
     } else {
-        food = { id: newId('cust_'), name, kcal, c, p, f, defaultG };
+        food = { id: newId('cust_'), name, kcal, c, p, f, defaultG, unitName, unitG, cook: cook >= 0.3 && cook <= 5 ? cook : 0 };
         foodDB.push(food);
         showToast(`"${name}" añadido a tus alimentos`);
     }
@@ -75,14 +83,8 @@ function saveFoodFromModal() {
 
     const pending = pendingMealAdd;
     closeModal('modalFood');
-    if (pending && mealsState[pending.slotId]) {
-        addItemToMeal(pending.slotId, food, pending.grams);
-        const meal = $(`meal_${pending.slotId}`);
-        if (meal) {
-            meal.querySelector('.meal-search').value = '';
-            meal.querySelector('.meal-grams').value = 100;
-        }
-    }
+    // Venías de añadir a una comida: se vuelve a la hoja de añadir con el alimento ya elegido
+    if (pending && mealsState[pending.slotId]) openAddSheet(pending.slotId, food);
 }
 
 function renderFoodTable() {
@@ -202,6 +204,74 @@ function toggleApiKeyVisibility() {
     $('btnToggleKeyVis').innerText = show ? 'Ocultar' : 'Ver';
 }
 
+// Foto → JPEG reducido en base64 (para que la subida sea rápida)
+function imageFileToBase64(file, maxPx = 1400) {
+    return new Promise((resolve, reject) => {
+        if (!file || !file.type.startsWith('image/')) { reject(new Error('no es una imagen')); return; }
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('no se pudo leer la foto'));
+        reader.onload = e => {
+            const img = new Image();
+            img.onerror = () => reject(new Error('no se pudo abrir la foto'));
+            img.onload = () => {
+                const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(img.width * scale);
+                canvas.height = Math.round(img.height * scale);
+                canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+// Pregunta a Gemini (con foto opcional) y devuelve el JSON de la respuesta. Usa tu clave gratuita y prueba
+// varios modelos: si uno ha agotado su cupo del día, el siguiente suele tener el suyo.
+async function geminiJSON(prompt, imageBase64, onStatus = () => {}) {
+    const apiKey = store.getItem(STORAGE_KEY_GEMINI_KEY) || '';
+    if (!apiKey) throw new Error('falta la clave de Gemini');
+    const models = ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-2.5-flash'];
+    const parts = [{ text: prompt }];
+    if (imageBase64) parts.push({ inline_data: { mime_type: 'image/jpeg', data: imageBase64 } });
+    let raw = null;
+    let lastError = null;
+
+    for (const model of models) {
+        onStatus(`Consultando ${model}…`);
+        try {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+                body: JSON.stringify({
+                    contents: [{ parts }],
+                    generationConfig: { temperature: 0.1, maxOutputTokens: 4096, responseMimeType: 'application/json' }
+                })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                raw = (data?.candidates?.[0]?.content?.parts || []).filter(p => p.text && !p.thought).map(p => p.text).join('');
+                if (raw) break;
+                lastError = 'la IA devolvió una respuesta vacía';
+            } else {
+                const err = await res.json().catch(() => ({}));
+                lastError = res.status === 429
+                    ? 'has llegado al límite gratuito de Gemini por ahora; prueba más tarde'
+                    : (err?.error?.message || `HTTP ${res.status}`);
+                if (res.status === 401 || res.status === 403 || /api key/i.test(lastError)) break; // clave mala: no insistir
+            }
+        } catch (e) {
+            lastError = e.message;
+        }
+    }
+    if (!raw) throw new Error(lastError || 'sin respuesta de la IA');
+    const clean = raw.replace(/```json|```/gi, '');
+    const a = clean.indexOf('{'), b = clean.lastIndexOf('}');
+    if (a < 0 || b <= a) throw new Error('la IA no ha devuelto datos legibles; prueba con otra foto o más detalle');
+    return JSON.parse(clean.slice(a, b + 1));
+}
+
 async function analyzeFoodPhoto() {
     if (!aiImageBase64) {
         showToast('Primero haz o sube una foto de la tabla nutricional', COLOR.error);
@@ -230,43 +300,7 @@ Extrae los valores por cada 100 g (o 100 ml):
 Responde solo con JSON: {"c": 0, "p": 0, "f": 0, "kcal": 0, "defaultG": 100}`;
 
     try {
-        // 'gemini-flash-latest' apunta siempre al Flash vigente; los otros son alternativas
-        const models = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'];
-        let raw = null;
-        let lastError = null;
-
-        for (const model of models) {
-            $('aiLoadingText').innerText = `Leyendo la etiqueta con ${model}…`;
-            try {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: 'image/jpeg', data: aiImageBase64 } }] }],
-                        generationConfig: { temperature: 0.1, maxOutputTokens: 2048, responseMimeType: 'application/json' }
-                    })
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    const parts = data?.candidates?.[0]?.content?.parts || [];
-                    raw = parts.filter(p => p.text && !p.thought).map(p => p.text).join('');
-                    if (raw) break;
-                    lastError = 'La IA devolvió una respuesta vacía';
-                } else {
-                    const err = await res.json().catch(() => ({}));
-                    lastError = err?.error?.message || `HTTP ${res.status}`;
-                    if (res.status === 401 || res.status === 403 || /api key/i.test(lastError)) break; // clave mala: no insistir
-                }
-            } catch (e) {
-                lastError = e.message;
-            }
-        }
-
-        if (!raw) throw new Error(lastError || 'Sin respuesta de la IA');
-        const match = raw.replace(/```json|```/gi, '').match(/\{[\s\S]*?\}/);
-        if (!match) throw new Error('No se encontró una tabla nutricional clara. Prueba con una foto más cercana y con buena luz.');
-
-        const data = JSON.parse(match[0]);
+        const data = await geminiJSON(prompt, aiImageBase64, t => { $('aiLoadingText').innerText = t; });
         const toNum = v => Math.max(0, parseFloat(String(v ?? '').replace(',', '.')) || 0);
         const c = toNum(data.c), p = toNum(data.p), f = toNum(data.f);
         $('mFoodC').value = c;

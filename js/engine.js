@@ -140,7 +140,10 @@ function sanitizeFood(f) {
         c: Math.max(0, num(f.c)),
         p: Math.max(0, num(f.p)),
         f: Math.max(0, num(f.f)),
-        defaultG: Math.max(1, num(f.defaultG, 100))
+        defaultG: Math.max(1, num(f.defaultG, 100)),
+        unitName: String(f.unitName || '').trim().slice(0, 20),      // "huevo", "rebanada"…
+        unitG: clamp(num(f.unitG), 0, 2000),                         // gramos de una unidad (0 = sin unidad)
+        cook: num(f.cook) >= 0.3 && num(f.cook) <= 5 ? num(f.cook) : 0 // peso cocinado por gramo en crudo (0 = automático)
     };
 }
 
@@ -165,7 +168,9 @@ function sanitizeItem(i) {
         kcal100: Math.max(0, num(i.kcal100)),
         c100: Math.max(0, num(i.c100)),
         p100: Math.max(0, num(i.p100)),
-        f100: Math.max(0, num(i.f100))
+        f100: Math.max(0, num(i.f100)),
+        est: Boolean(i.est),                         // estimado (≈), no pesado
+        note: String(i.note || '').slice(0, 60)      // cómo se apuntó: "250 g cocinado", "2 rebanada"…
     };
 }
 

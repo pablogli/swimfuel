@@ -410,10 +410,7 @@ function findFoodByName(name) {
 }
 
 function refreshFoodDatalist() {
-    $('foodDatalist').innerHTML = [...foodDB]
-        .sort((a, b) => a.name.localeCompare(b.name, 'es'))
-        .map(f => `<option value="${escapeHtml(f.name)}">${escapeHtml(f.kcal)} kcal · C ${escapeHtml(f.c)} · P ${escapeHtml(f.p)} · G ${escapeHtml(f.f)} /100 g</option>`)
-        .join('');
+    // Antes rellenaba la lista nativa del navegador; el buscador propio lee los alimentos al abrirse
 }
 
 function renderMeals() {
@@ -436,28 +433,12 @@ function renderMeals() {
                 <button class="icon-btn" data-act="menu" aria-label="Opciones de ${escapeHtml(slot.title)}">${icon('more')}</button>
             </div>
             <div id="items_${slot.id}"></div>
-            <div class="meal-add">
-                ${icon('search')}
-                <input type="text" class="meal-search" list="foodDatalist" placeholder="Añadir alimento" aria-label="Alimento para ${escapeHtml(slot.title)}" autocomplete="off">
-                <input type="number" class="meal-grams" value="100" min="1" step="5" inputmode="decimal" aria-label="Gramos">
-                <button class="add-circle" data-act="add" aria-label="Añadir alimento">${icon('plus')}</button>
-            </div>`;
+            <button class="meal-add" type="button" data-act="add" aria-label="Añadir a ${escapeHtml(slot.title)}">${icon('plus')}<span>Añadir alimento o plato</span></button>`;
 
-        const search = el.querySelector('.meal-search');
-        const grams = el.querySelector('.meal-grams');
-        const submit = () => addFoodToMeal(slot.id, search, grams);
-
-        // Al elegir un alimento de la lista se pone su ración habitual
-        search.addEventListener('input', () => {
-            const f = findFoodByName(search.value);
-            if (f) grams.value = f.defaultG || 100;
-        });
-        [search, grams].forEach(inp => inp.addEventListener('keydown', e => {
-            if (e.key === 'Enter') { e.preventDefault(); submit(); }
-        }));
-        el.querySelector('[data-act="add"]').addEventListener('click', submit);
+        el.querySelector('[data-act="add"]').addEventListener('click', () => openAddSheet(slot.id));
         el.querySelector('[data-act="menu"]').addEventListener('click', () => openActionSheet(slot.title, [
             { label: 'Cambiar nombre', icon: 'edit', run: () => renameMeal(slot.id) },
+            { label: 'Guardar como plato', icon: 'copy', run: () => saveMealAsDish(slot.id) },
             { label: 'Eliminar comida', icon: 'trash', danger: true, run: () => removeMeal(slot.id) }
         ]));
 
@@ -476,7 +457,7 @@ function renderMealItems(slotId) {
         row.className = 'food-item';
         row.innerHTML = `
             <div class="fi-main">
-                <span class="fi-name">${escapeHtml(item.name)}</span>
+                <span class="fi-name">${item.est ? '≈ ' : ''}${escapeHtml(item.name)}</span>
                 <span class="fi-macros" data-cell="m"></span>
             </div>
             <span class="fi-grams"><input type="number" class="gram-input" value="${escapeHtml(item.grams)}" step="5" min="0" inputmode="decimal" aria-label="Gramos de ${escapeHtml(item.name)}">g</span>
@@ -486,13 +467,14 @@ function renderMealItems(slotId) {
         const paint = () => {
             const m = itemMacros(item);
             row.querySelector('[data-cell="k"]').textContent = Math.round(m.k);
-            row.querySelector('[data-cell="m"]').textContent = `C ${Math.round(m.c)} · P ${Math.round(m.p)} · G ${Math.round(m.f)}`;
+            row.querySelector('[data-cell="m"]').textContent = `C ${Math.round(m.c)} · P ${Math.round(m.p)} · G ${Math.round(m.f)}${item.note ? ` · ${item.note}` : ''}`;
         };
         paint();
 
         // Se actualiza en el sitio: el campo no pierde el foco mientras escribes
         row.querySelector('.gram-input').addEventListener('input', e => {
             item.grams = Math.max(0, num(e.target.value));
+            item.note = '';   // has cambiado los gramos a mano: la nota de cómo se apuntó ya no vale
             paint();
             updateMealSummary(slotId);
             onDayChanged();
@@ -514,40 +496,8 @@ function updateMealSummary(slotId) {
     if (el) el.innerHTML = k ? `${fmtInt(k)} <small>kcal</small>` : '';
 }
 
-function addFoodToMeal(slotId, searchEl, gramsEl) {
-    const text = searchEl.value.trim();
-    const grams = num(gramsEl.value);
-    if (!text) {
-        showToast('Escribe o elige un alimento', COLOR.error);
-        searchEl.focus();
-        return;
-    }
-    if (grams <= 0) {
-        showToast('La cantidad debe ser mayor que 0 g', COLOR.error);
-        gramsEl.focus();
-        return;
-    }
-
-    let food = findFoodByName(text);
-    if (!food) {
-        const matches = foodDB.filter(f => f.name.toLowerCase().includes(text.toLowerCase()));
-        if (matches.length === 1) food = matches[0];
-    }
-
-    if (!food) {
-        // No existe: se abre el formulario con el nombre ya escrito y, al guardar, se añade a esta comida
-        pendingMealAdd = { slotId, grams };
-        openFoodModal({ name: text });
-        showToast(`"${text}" no está en tus alimentos: rellena sus valores`, COLOR.info);
-        return;
-    }
-
-    addItemToMeal(slotId, food, grams);
-    searchEl.value = '';
-    gramsEl.value = 100;
-}
-
-function addItemToMeal(slotId, food, grams) {
+// extra: { est, note } para lo estimado o apuntado en cocinado/unidades
+function addItemToMeal(slotId, food, grams, extra = {}) {
     if (!mealsState[slotId]) mealsState[slotId] = [];
     // Se copian los valores por 100 g para que el histórico no cambie si luego editas el alimento
     mealsState[slotId].push({
@@ -557,7 +507,8 @@ function addItemToMeal(slotId, food, grams) {
         kcal100: food.kcal,
         c100: food.c,
         p100: food.p,
-        f100: food.f
+        f100: food.f,
+        ...extra
     });
     renderMealItems(slotId);
     onDayChanged();

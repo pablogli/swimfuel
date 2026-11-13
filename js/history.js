@@ -403,7 +403,8 @@ function exportFullBackup() {
         foodDB,
         historyLogs,
         profile: readJSON(STORAGE_KEY_PROFILE, null),
-        mealSlots: templateSlots
+        mealSlots: templateSlots,
+        dishes
     };
     downloadBlob(JSON.stringify(backup, null, 2), 'application/json', `SwimFuel_Copia_${todayLocalISO()}.json`);
     store.setItem(STORAGE_KEY_LAST_BACKUP, String(Date.now()));
@@ -449,6 +450,7 @@ function importFullBackup(event) {
                 store.setItem(STORAGE_KEY_PROFILE, JSON.stringify(prof));
                 PROFILE_FIELDS.forEach(k => { if (prof[k]) $(k).value = prof[k]; });
             }
+            if (Array.isArray(data.dishes)) { dishes = sanitizeDishes(data.dishes); saveDishes(); }
             const slots = sanitizeMealSlots(data.mealSlots);
             if (slots.length) { mealSlots = slots; saveSlots(); }
 

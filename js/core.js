@@ -11,6 +11,7 @@ const STORAGE_KEY_DRAFT = 'swimfuel_current_day_draft_v2'; // solo para migrar v
 const STORAGE_KEY_LAST_BACKUP = 'swimfuel_last_backup';
 const STORAGE_KEY_BACKUP_NAG = 'swimfuel_backup_nag';
 const STORAGE_KEY_SCHEMA = 'swimfuel_schema';
+const STORAGE_KEY_DISHES = 'swimfuel_dishes_v1';
 
 // Versión de los datos. Regla para no perder nada: los cambios solo AÑADEN campos; un día antiguo se queda
 // tal cual hasta que lo editas, y al leerlo se rellenan los campos que le falten.
@@ -59,6 +60,7 @@ const ICONS = {
     close: '<path d="M6 6l12 12M18 6L6 18"/>',
     more: '<circle cx="5.5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor"/>',
     search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
+    bowl: '<path d="M4 11h16a8 8 0 0 1-16 0zM9 7c0-1.5 1-1.5 1-3M14 7c0-1.5 1-1.5 1-3"/>',
     camera: '<path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8l1.4-2h4.6l1.4 2h1.8A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.5"/>',
     swim: '<circle cx="16.5" cy="6.5" r="2"/><path d="M6 12.5l4.5-3.5 3.5 2.5M3 16c1.5 0 1.5-1 3-1s1.5 1 3 1 1.5-1 3-1 1.5 1 3 1 1.5-1 3-1 1.5 1 3 1M3 20c1.5 0 1.5-1 3-1s1.5 1 3 1 1.5-1 3-1 1.5 1 3 1 1.5-1 3-1 1.5 1 3 1"/>',
     gym: '<path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/>',
@@ -175,6 +177,7 @@ let pendingMealAdd = null;  // { slotId, grams } si el modal se abrió desde una
 let kcalTouched = false;    // el usuario escribió las kcal a mano: no recalcular
 let aiImageBase64 = null;
 let appReady = false;
+let dishes = [];                                     // platos guardados (recetas)
 let sleepState = null;                               // sueño de la noche del día abierto (o null)
 
 // ==========================================================
@@ -188,6 +191,8 @@ function loadAll() {
         foodDB = INITIAL_STARTER_DB.map(f => ({ ...f }));
         saveFoodDB();
     }
+
+    dishes = sanitizeDishes(readJSON(STORAGE_KEY_DISHES, []));
 
     const hist = readJSON(STORAGE_KEY_HISTORY, []);
     historyLogs = cleanHistory(hist);
@@ -210,6 +215,10 @@ function saveFoodDB() {
     store.setItem(STORAGE_KEY_DB, JSON.stringify(foodDB));
     updateBadges();
     refreshFoodDatalist();
+}
+
+function saveDishes() {
+    store.setItem(STORAGE_KEY_DISHES, JSON.stringify(dishes));
 }
 
 function saveHistory() {
@@ -303,6 +312,8 @@ function buildRecord(date) {
         calibration: energy.calibration,
         goal: $('goal').value,
         kcalReal: totals.kcal, kcalTarget: targets.kcal,
+        // kcal que vienen de estimaciones (≈): los días con muchas pesan menos al calcular tu gasto real
+        estKcal: Math.round(mealSlots.reduce((a, s) => a + (mealsState[s.id] || []).filter(i => i.est).reduce((b, i) => b + itemMacros(i).k, 0), 0)),
         cReal: totals.c, cTarget: targets.c,
         pReal: totals.p, pTarget: targets.p,
         fReal: totals.f, fTarget: targets.f,
@@ -455,7 +466,7 @@ function switchTab(tab) {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === `tab_${tab}`));
     if (tab !== 'today') $('stickySummary').classList.remove('show');
     window.scrollTo(0, 0);
-    if (tab === 'foods') renderFoodTable();
+    if (tab === 'foods') { renderFoodTable(); renderDishList(); }
     if (tab === 'history') renderHistory();
     if (tab === 'sleep') renderSleepTab();
 }
