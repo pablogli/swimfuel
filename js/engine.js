@@ -96,7 +96,8 @@ function sanitizeSession(s) {
         sets: String(s.sets || '').slice(0, 2000),
         metersFromSets: Boolean(s.metersFromSets),
         gymType: GYM_TYPES[s.gymType] ? s.gymType : 'strength',
-        label: String(s.label || '').slice(0, 40)
+        label: String(s.label || '').slice(0, 40),
+        time: TIME_RE.test(String(s.time)) ? String(s.time) : ''
     };
 }
 

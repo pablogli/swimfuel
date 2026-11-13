@@ -107,14 +107,11 @@
             </div>
             <div class="list">
                 <label class="list-row">
-                    <span>Jornada</span>
+                    <span>Tipo de día</span>
                     <select id="dayType" class="inline-select">
-                        <option value="Agua + Gimnasio" selected>Agua + gimnasio</option>
-                        <option value="Doble Sesión Agua">Doble sesión</option>
-                        <option value="Sesión Única Intensa">Sesión intensa</option>
+                        <option value="Normal" selected>Entreno normal</option>
                         <option value="Tapering">Tapering</option>
                         <option value="Competición">Competición</option>
-                        <option value="Descanso">Descanso</option>
                     </select>
                 </label>
             </div>
@@ -135,6 +132,21 @@
             <div class="section-head"><h2>Notas</h2></div>
             <textarea id="logNotes" rows="2" placeholder="Sensaciones, cansancio, cómo fue el entreno…"></textarea>
         </section>
+
+        <details class="disclosure" id="fuelCard" style="margin-bottom:10px;">
+            <summary>
+                <span class="s-icon" data-icon="apple"></span>
+                <span class="grow">
+                    <span class="s-title" style="display:block;">Comer alrededor del entreno</span>
+                    <span class="s-sub" id="fuelSummary" style="display:block;"></span>
+                </span>
+                <span class="s-chev" data-icon="chevronDown"></span>
+            </summary>
+            <div class="disclosure-body">
+                <ul class="supp-list" id="fuelList"></ul>
+                <p class="disclaimer">Pon la hora de cada entreno para afinar. Basado en las guías de nutrición deportiva (Burke 2011; Thomas, Erdman y Burke 2016; Schoenfeld y Aragon 2018). Orientativo: ajústalo a lo que te sienta bien.</p>
+            </div>
+        </details>
 
         <details class="disclosure" id="recoCard">
             <summary>
@@ -349,8 +361,8 @@
                     <li><strong>Agua, sin zonas:</strong> con metros e intensidad se usa una velocidad media (margen ±20 %); solo con minutos, un MET de 3,5 + 0,7 × intensidad (±30 %).</li>
                     <li><strong>Gimnasio:</strong> MET según el tipo (fuerza 5, potencia 6, circuito 8, seco 4,5, movilidad 2,5), ±7 % por punto de intensidad y +10 % tras fuerza, potencia o circuito.</li>
                     <li>Los entrenos suman solo el gasto <em>extra</em>: el reposo ya está en el gasto base.</li>
-                    <li><strong>Ajuste por tus datos:</strong> con 2–4 semanas de comidas y pesajes se compara lo que comes con la tendencia de tu peso. Es lo que más afina: corrige lo que las fórmulas no saben de ti.</li>
-                    <li>Proteína 2,1 g/kg (1,9 en fondo; 2,3 en definición). Carbohidratos de 4 g/kg (descanso) a 8,5 g/kg (doble sesión), +1 en fondo. Grasas: el resto, entre 1 g/kg y el 30% de las kcal.</li>
+                    <li><strong>Ajuste por tus datos:</strong> con 2–4 semanas de comidas y pesajes se compara lo que comes con la tendencia de tu peso (calculada de forma que un día hinchado apenas la mueva). El ajuste se aplica solo, como mucho un 1 % al día, y puedes pausarlo en Diario. Es lo que más afina: corrige lo que las fórmulas no saben de ti.</li>
+                    <li><strong>Macros:</strong> proteína 2,1 g/kg (1,9 en fondo; 2,3 en definición). Hidratos según lo que entrenas ese día: 4 g/kg en descanso, unos 6 con una hora y hasta 10 en los días más duros; mínimo 7 en competición y 6 en tapering (Burke 2011). Grasas: el resto, entre el 20 % y el 30 % de las kcal.</li>
                 </ul>
             </details>
         </div>
@@ -566,6 +578,7 @@
 
 <script src="js/engine.js"></script>
 <script src="js/training.js"></script>
+<script src="js/balance.js"></script>
 <script src="js/core.js"></script>
 <script src="js/today.js"></script>
 <script src="js/foods.js"></script>

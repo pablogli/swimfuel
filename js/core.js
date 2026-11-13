@@ -389,11 +389,10 @@ function openDate(date) {
 
     const rec = historyLogs.find(h => h.date === date);
     const prof = readJSON(STORAGE_KEY_PROFILE, {}) || {};
-    const setIf = (id, v) => { if (v !== undefined && v !== null && v !== '') $(id).value = v; };
 
     if (rec) {
         $('weight').value = rec.weighed !== false && num(rec.weight) >= 30 ? num(rec.weight) : '';
-        setIf('dayType', rec.dayType);
+        $('dayType').value = normalizeDayType(rec.dayType);
         sessions = Array.isArray(rec.sessions)
             ? sanitizeSessions(rec.sessions)
             : legacySessions(rec.dayType, rec.swimMin, rec.gymMin);
@@ -404,8 +403,7 @@ function openDate(date) {
         mealsState = sanitizeMeals(rec.mealsSnapshot);
     } else {
         // Entrenos y tipo de jornada habituales; el peso vacío hasta que te peses
-        const sel = $('dayType');
-        setIf('dayType', prof.dayType ?? ([...sel.options].find(o => o.defaultSelected) || sel.options[0]).value);
+        $('dayType').value = 'Normal';
         $('weight').value = '';
         sessions = templateSessions(prof);
         $('logNotes').value = '';
@@ -435,7 +433,7 @@ function migrateOldDraft() {
 
     currentDate = draft.date;
     $('logDate').value = draft.date;
-    if (draft.dayType) $('dayType').value = draft.dayType;
+    $('dayType').value = normalizeDayType(draft.dayType);
     sessions = legacySessions(draft.dayType, draft.swimMin, draft.gymMin);
     $('weight').value = '';
     $('logNotes').value = draft.notes || '';

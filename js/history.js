@@ -60,78 +60,152 @@ const statHtml = (label, value, sub = '') =>
 // ==========================================================
 // CALIBRACIÓN: tu gasto real a partir de lo que comes y de cómo cambia tu peso
 // ==========================================================
-const CALIB = { windowDays: 28, minFoodDays: 12, minWeighIns: 4, minSpanDays: 12, kcalPerKg: 7700 };
+function currentAnalysis() {
+    return expenditureAnalysis(historyLogs, todayLocalISO(), estimateRecordRaw);
+}
 
-function analyzeCalibration() {
+function calibAutoOn() {
+    return (readJSON(STORAGE_KEY_PROFILE, {}) || {}).calibAuto !== false;
+}
+
+function setCalibAuto(on) {
+    const prof = readJSON(STORAGE_KEY_PROFILE, {}) || {};
+    prof.calibAuto = on;
+    if (on) delete prof.calibDate;
+    store.setItem(STORAGE_KEY_PROFILE, JSON.stringify(prof));
+    if (on) autoCalibrate();
+    recalculateTargets();
+    scheduleSave();
+    renderCalibrationCard();
+    showToast(on ? 'Ajuste automático activado' : 'Ajuste automático en pausa');
+}
+
+// Una vez al día, el ajuste se acerca un poco al gasto real medido (salvo que lo tengas en pausa)
+function autoCalibrate() {
+    if (!calibAutoOn()) return;
+    const prof = readJSON(STORAGE_KEY_PROFILE, {}) || {};
     const today = todayLocalISO();
-    const from = addDays(today, -CALIB.windowDays);
-    // Hoy no cuenta: el día aún no ha terminado
-    const win = historyLogs.filter(h => h.date >= from && h.date < today);
-    const fed = win.filter(h => num(h.kcalReal) > 0);
-    const weighs = win
-        .filter(h => h.weighed === true && num(h.weight) >= 30)
-        .sort((a, b) => a.date.localeCompare(b.date));
-    const dayIdx = d => Math.round((new Date(`${d}T12:00`) - new Date(`${from}T12:00`)) / 86400000);
-    const span = weighs.length > 1 ? dayIdx(weighs[weighs.length - 1].date) - dayIdx(weighs[0].date) : 0;
-    const res = { fedDays: fed.length, weighIns: weighs.length, span, ready: false };
-    if (fed.length < CALIB.minFoodDays || weighs.length < CALIB.minWeighIns || span < CALIB.minSpanDays) return res;
-
-    // Tendencia del peso (kg/día) con mínimos cuadrados: un pesaje raro pesa poco
-    const xs = weighs.map(h => dayIdx(h.date));
-    const ys = weighs.map(h => num(h.weight));
-    const mean = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
-    const mx = mean(xs), my = mean(ys);
-    const slope = xs.reduce((a, x, k) => a + (x - mx) * (ys[k] - my), 0) / xs.reduce((a, x) => a + (x - mx) ** 2, 0);
-
-    const avgIntake = mean(fed.map(h => num(h.kcalReal)));
-    // Si comes X y no cambias de peso, gastas X. Si bajas, gastas más de lo que comes (7.700 kcal ≈ 1 kg)
-    const realTDEE = avgIntake - slope * CALIB.kcalPerKg;
-    const goalAdjOf = g => (g === 'surplus' ? 300 : g === 'cut' ? -300 : 0);
-    const estRaw = mean(fed.map(h => num(h.maintRaw) || (num(h.kcalTarget) - goalAdjOf(h.goal)) / (num(h.calibration) || 1)));
-    if (!(estRaw > 0)) return res;
-    const ratio = realTDEE / estRaw;
-    return { ...res, ready: true, slopeWeek: slope * 7, avgIntake, realTDEE, estRaw, ratio, suggested: clamp(ratio, 0.75, 1.3) };
+    if (prof.calibDate === today) return;
+    const a = currentAnalysis();
+    // Una diferencia fuera de los límites casi siempre son comidas sin apuntar: no se aplica sola
+    if (!a.ready || Math.abs(a.ratio - a.suggested) > 0.006) return;
+    const days = DATE_RE.test(String(prof.calibDate))
+        ? Math.round((new Date(`${today}T12:00`) - new Date(`${prof.calibDate}T12:00`)) / 86400000)
+        : 3;
+    prof.calibration = nextCalibration(getCalibration(), a.suggested, days);
+    prof.calibDate = today;
+    store.setItem(STORAGE_KEY_PROFILE, JSON.stringify(prof));
 }
 
 function renderCalibrationCard() {
     const el = $('calibrationCard');
-    const a = analyzeCalibration();
+    const a = currentAnalysis();
     const cur = getCalibration();
+    const auto = calibAutoOn();
     const bar = v => `<div class="calib-progress"><div style="width:${Math.round(clamp(v, 0, 1) * 100)}%"></div></div>`;
+    const sign = v => (v > 0 ? '+' : v < 0 ? '−' : '');
+    let html;
 
     if (!a.ready) {
-        el.innerHTML = `
-            <p class="small" style="margin-bottom:10px;">Las fórmulas son una estimación (±15–20%). Para saber lo que gastas <strong>tú</strong>, la app compara lo que comes con cómo cambia tu peso. Necesita, en las últimas 4 semanas:</p>
+        html = `
+            <p class="small" style="margin-bottom:10px;">Las fórmulas son una estimación. Para saber lo que gastas <strong>tú</strong>, la app compara lo que comes con la tendencia de tu peso. Necesita, en las últimas 4 semanas:</p>
             <div class="small">Días con <strong>todas</strong> tus comidas apuntadas: ${a.fedDays} / ${CALIB.minFoodDays}</div>
             ${bar(a.fedDays / CALIB.minFoodDays)}
-            <div class="small">Pesajes (escribe tu peso en Hoy): ${a.weighIns} / ${CALIB.minWeighIns}, repartidos en ${CALIB.minSpanDays} días o más</div>
+            <div class="small">Pesajes: ${a.weighIns} / ${CALIB.minWeighIns}, repartidos en ${CALIB.minSpanDays} días o más</div>
             ${bar(Math.min(a.weighIns / CALIB.minWeighIns, a.span / CALIB.minSpanDays))}
-            <p class="muted small">Pésate por la mañana, en ayunas y después de ir al baño. Apunta todo lo que comas: si se te olvida algo, parecerá que gastas menos de lo real.</p>
-            ${cur !== 1 ? `<p class="small">Ajuste aplicado ahora: ×${cur.toFixed(2)} <button class="link-btn" data-calib="reset">Quitar</button></p>` : ''}`;
+            <p class="muted small">Pésate por la mañana, en ayunas y después de ir al baño. Apunta todo lo que comas: si se te olvida algo, parecerá que gastas menos de lo real.</p>`;
     } else {
         const diffPct = Math.round((a.ratio - 1) * 100);
-        const fits = Math.abs(diffPct) <= 3;
-        const sign = v => (v > 0 ? '+' : '');
-        el.innerHTML = `
+        const outOfRange = Math.abs(a.ratio - a.suggested) > 0.006;
+        const pending = !outOfRange && Math.abs(a.suggested - cur) >= 0.01;
+        html = `
             <div class="stats-grid">
-                ${statHtml('Comes de media', `${fmtInt(a.avgIntake)} kcal`, `${a.fedDays} días apuntados`)}
-                ${statHtml('Tu peso', `${sign(a.slopeWeek)}${a.slopeWeek.toFixed(2)} kg/sem`, `${a.weighIns} pesajes`)}
-                ${statHtml('Gasto real', `${fmtInt(a.realTDEE)} kcal`, 'según tus datos')}
-                ${statHtml('La app calculaba', `${fmtInt(a.estRaw)} kcal`, `${sign(diffPct)}${diffPct}% de diferencia`)}
+                ${statHtml('Comes de media', `${fmtInt(a.avgIntake)} kcal`, `${a.fedDays} días completos`)}
+                ${statHtml('Tendencia del peso', `${sign(a.slopeWeek)}${Math.abs(a.slopeWeek).toFixed(2).replace('.', ',')} kg`, `por semana · ${a.weighIns} pesajes`)}
+                ${statHtml('Gasto real', `${fmtInt(a.realTDEE)} kcal`, `±${fmtInt(Math.round(a.marginKcal / 10) * 10)} por lo que baila el peso`)}
+                ${statHtml('La app calculaba', `${fmtInt(a.estRaw)} kcal`, `${sign(diffPct)}${Math.abs(diffPct)} % de diferencia`)}
             </div>
-            <p class="small" style="margin-bottom:10px;">${fits
+            <p class="small" style="margin-bottom:10px;">${Math.abs(diffPct) <= 3
                 ? 'El cálculo de la app ya encaja con tus datos.'
-                : `Tu gasto real es un ${Math.abs(diffPct)}% ${diffPct > 0 ? 'mayor' : 'menor'} que el calculado. Aplica el ajuste para que todos tus objetivos lo tengan en cuenta.`}
-                ${a.ratio !== a.suggested ? ' (La diferencia es muy grande: revisa que apuntas todo lo que comes. Se limita el ajuste por seguridad.)' : ''}</p>
-            <div class="row">
-                ${!fits && Math.abs(a.suggested - cur) > 0.005 ? `<button class="btn-green btn-sm" data-calib="apply">Aplicar ajuste ×${a.suggested.toFixed(2)}</button>` : ''}
-                ${cur !== 1 ? `<button class="btn-secondary btn-sm" data-calib="reset">Quitar ajuste (ahora ×${cur.toFixed(2)})</button>` : ''}
-            </div>
-            <p class="muted small" style="margin-top:8px;">Revísalo cada pocas semanas: si cambias de etapa de entrenamiento, tu gasto cambia.</p>`;
+                : `Tu gasto real es un ${Math.abs(diffPct)} % ${diffPct > 0 ? 'mayor' : 'menor'} que el calculado.`}
+                ${outOfRange ? ' Es una diferencia demasiado grande para ser real: casi seguro faltan comidas por apuntar. Hasta que cuadre, el ajuste no cambia solo.' : ''}
+                ${auto
+                    ? `Ajuste automático: ahora ×${cur.toFixed(2)}${pending ? `, y cada día se acerca un poco a ×${a.suggested.toFixed(2)}` : ''}.`
+                    : `Ajuste automático en pausa (ahora ×${cur.toFixed(2)}).`}</p>`;
     }
+    if (a.partial) {
+        html += `<p class="muted small">${a.partial} día${a.partial === 1 ? '' : 's'} con menos del ${Math.round(CALIB.completeFrac * 100)} % del objetivo apuntado no cuenta${a.partial === 1 ? '' : 'n'}: parece${a.partial === 1 ? '' : 'n'} a medias.</p>`;
+    }
+    html += `
+        <div class="chart-wrap" id="weightChart" style="margin-top:12px;"></div>
+        <div class="chart-readout" id="weightReadout" aria-live="polite"></div>
+        <div class="row" style="margin-top:10px;">
+            <button class="btn-secondary btn-sm" data-calib="auto">${auto ? 'Pausar el ajuste automático' : 'Reanudar el ajuste automático'}</button>
+            ${cur !== 1 ? `<button class="btn-secondary btn-sm" data-calib="reset">Quitar ajuste (×${cur.toFixed(2)})</button>` : ''}
+        </div>`;
+    el.innerHTML = html;
 
-    el.querySelector('[data-calib="apply"]')?.addEventListener('click', () => setCalibration(a.suggested));
-    el.querySelector('[data-calib="reset"]')?.addEventListener('click', () => setCalibration(1));
+    el.querySelector('[data-calib="auto"]').addEventListener('click', () => setCalibAuto(!auto));
+    el.querySelector('[data-calib="reset"]')?.addEventListener('click', () => {
+        const prof = readJSON(STORAGE_KEY_PROFILE, {}) || {};
+        prof.calibAuto = false;   // si no, mañana volvería a ajustarse solo
+        store.setItem(STORAGE_KEY_PROFILE, JSON.stringify(prof));
+        setCalibration(1);
+    });
+    renderWeightChart(a);
+}
+
+// Pesajes de las últimas 4 semanas (puntos) y la tendencia que usa el cálculo (línea). Tocar un punto muestra el dato.
+function renderWeightChart(a) {
+    const el = $('weightChart');
+    const pts = a.weighs;
+    if (pts.length < 2) {
+        el.innerHTML = '';
+        $('weightReadout').textContent = '';
+        return;
+    }
+    const W = 340, H = 150, padL = 36, padR = 10, padT = 10, padB = 22;
+    const ws = pts.map(p => p.w);
+    const margin = Math.max(0.3, (Math.max(...ws) - Math.min(...ws)) * 0.15);
+    const lo = Math.min(...ws) - margin, hi = Math.max(...ws) + margin;
+    const x = d => padL + (d / CALIB.windowDays) * (W - padL - padR);
+    const y = w => padT + (hi - w) / (hi - lo) * (H - padT - padB);
+    const kg = w => w.toFixed(1).replace('.', ',');
+
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Tu peso de las últimas 4 semanas y su tendencia">`;
+    [lo + margin * 0.5, (lo + hi) / 2, hi - margin * 0.5].forEach(w => {
+        svg += `<line x1="${padL}" x2="${W - padR}" y1="${y(w)}" y2="${y(w)}" style="stroke:var(--line)" stroke-width="1"/>`;
+        svg += `<text x="${padL - 6}" y="${y(w) + 3.5}" text-anchor="end" font-size="10" style="fill:var(--text-3)">${kg(w)}</text>`;
+    });
+    [0, 14, 28].forEach(d => {
+        svg += `<text x="${x(d)}" y="${H - 6}" text-anchor="${d === 0 ? 'start' : d === 28 ? 'end' : 'middle'}" font-size="10" style="fill:var(--text-3)">${formatDateES(addDays(a.from, d), true)}</text>`;
+    });
+    if (a.trend) {
+        const t = d => a.trend.intercept + a.trend.slope * d;
+        const d0 = pts[0].x, d1 = pts[pts.length - 1].x;
+        svg += `<line x1="${x(d0)}" y1="${y(t(d0))}" x2="${x(d1)}" y2="${y(t(d1))}" style="stroke:var(--accent)" stroke-width="2" stroke-linecap="round"/>`;
+    }
+    pts.forEach((p, i) => {
+        svg += `<circle cx="${x(p.x)}" cy="${y(p.w)}" r="3.5" style="fill:var(--text); stroke:var(--surface)" stroke-width="1.5"/>`;
+        svg += `<circle class="sleep-hit" data-i="${i}" cx="${x(p.x)}" cy="${y(p.w)}" r="12" fill="transparent"><title>${formatDateES(p.date)}: ${kg(p.w)} kg</title></circle>`;
+    });
+    svg += '</svg>';
+    el.innerHTML = svg + `
+        <div class="legend">
+            <span><i style="background:var(--text)"></i>pesajes</span>
+            <span><i style="background:var(--accent); width:12px; height:2px; border-radius:2px; vertical-align:3px;"></i>tendencia (la que usa el cálculo)</span>
+        </div>`;
+
+    const readout = $('weightReadout');
+    const last = pts[pts.length - 1];
+    readout.textContent = a.trend
+        ? `Tendencia: de ${kg(a.trend.intercept + a.trend.slope * pts[0].x)} a ${kg(a.trend.intercept + a.trend.slope * last.x)} kg. Último pesaje: ${kg(last.w)} kg.`
+        : `Último pesaje: ${kg(last.w)} kg. Con 4 pesajes se dibuja la tendencia.`;
+    el.querySelectorAll('.sleep-hit').forEach(c => c.addEventListener('click', () => {
+        const p = pts[Number(c.dataset.i)];
+        readout.textContent = `${formatDateES(p.date)}: ${kg(p.w)} kg` +
+            (a.trend ? ` · tendencia ${kg(a.trend.intercept + a.trend.slope * p.x)} kg` : '');
+    }));
 }
 
 function setCalibration(value) {

@@ -5,7 +5,8 @@
 // OBJETIVOS DEL DÍA
 // ==========================================================
 // Gasto del día: base (basal × actividad) + extra de cada entreno, × ajuste por tus datos, ± objetivo
-function computeEnergy(weight) {
+// list: entrenos a contar (los del día abierto, o los de un día guardado para comparar con tu gasto real)
+function computeEnergy(weight, list = sessions) {
     const sex = $('sex').value;
     const age = num($('age').value, 20) || 20;
     const height = num($('height').value, 185) || 185;
@@ -14,8 +15,8 @@ function computeEnergy(weight) {
 
     const bmr = restingEnergy({ sex, age, height, weight, bodyFat: $('bodyFat').value });
     const paces = swimPaces({ pb50: $('pb50').value, pb100: $('pb100').value, pb200: $('pb200').value, pb400: $('pb400').value });
-    const perSession = sessions.map(s => ({ id: s.id, type: s.type, ...sessionKcal(s, { weight, sex, paces }) }));
-    const trainMin = sessions.reduce((a, s, k) => {
+    const perSession = list.map(s => ({ id: s.id, type: s.type, ...sessionKcal(s, { weight, sex, paces }) }));
+    const trainMin = list.reduce((a, s, k) => {
         const d = perSession[k].detail;
         return a + (num(s.minutes) || (d ? d.swimMin + d.restMin : 0));
     }, 0);
@@ -37,39 +38,12 @@ function recalculateTargets() {
     energy = computeEnergy(weight);
     const totalKcal = energy.total;
 
-    const protFactor = goal === 'cut' ? 2.3 : (specialty === 'distance' ? 1.9 : 2.1);
-    const carbByDay = {
-        'Agua + Gimnasio': 6.5,
-        'Doble Sesión Agua': 8.5,
-        'Sesión Única Intensa': 6.0,
-        'Competición': 7.5,
-        'Tapering': 5.0,
-        'Descanso': 4.0
-    };
-    const carbFactor = (carbByDay[dayType] ?? 6.0) + (specialty === 'distance' ? 1.0 : 0);
-
-    const p = weight * protFactor;
-    let c = weight * carbFactor;
-    // Grasas = energía restante, entre 1 g/kg y el 30% de las kcal; el exceso pasa a carbohidratos
-    let f = (totalKcal - c * 4 - p * 4) / 9;
-    const minF = weight * 1.0;
-    const maxF = (totalKcal * 0.30) / 9;
-    if (f > maxF) {
-        c += ((f - maxF) * 9) / 4;
-        f = maxF;
-    }
-    f = Math.max(minF, f);
-
-    targets = {
-        weight,
-        c: Math.round(c),
-        p: Math.round(p),
-        f: Math.round(f),
-        kcal: calcKcal(Math.round(c), Math.round(p), Math.round(f))
-    };
+    // Proteína por kg, hidratos según lo que entrenas hoy y grasas con el resto
+    targets = { weight, ...macroTargets({ weight, totalKcal, trainingKcal: energy.training, goal, specialty, dayType }) };
 
     paintEnergy();
     renderRecommendations(weight, dayType, sessions.reduce((a, s) => a + num(s.minutes), 0));
+    renderFuelPlan(weight);
     saveProfile();
     updateCalibrationInfo();
     updateSummaryUI();
@@ -175,7 +149,7 @@ function buildSessionCard(s) {
     const isOpen = openSessions.has(s.id);
     el.className = `session${isOpen ? ' open' : ''}`;
     el.dataset.sid = s.id;
-    const minutesField = `<div><label>Minutos</label><input type="number" data-f="minutes" value="${s.minutes || ''}" min="0" step="5" inputmode="numeric" placeholder="0"></div>`;
+    const minutesField = `<div><label>Minutos</label><input type="number" data-f="minutes" value="${s.minutes || ''}" min="0" step="5" inputmode="numeric" placeholder="0"></div><div><label>Hora</label><input type="time" data-f="time" value="${escapeHtml(s.time || '')}"></div>`;
 
     let fields;
     if (s.type === 'swim') {
@@ -329,12 +303,35 @@ function addSession(type) {
     }, 80);
 }
 
+// Gasto sin ajuste que la app calcula para un día guardado, con el modelo y el perfil actuales
+function estimateRecordRaw(rec) {
+    const list = Array.isArray(rec.sessions) ? sanitizeSessions(rec.sessions) : legacySessions(rec.dayType, rec.swimMin, rec.gymMin);
+    const e = computeEnergy(num(rec.weight) >= 30 ? num(rec.weight) : currentWeight(), list);
+    return e.base + e.training;
+}
+
+function renderFuelPlan(weight) {
+    const list = sessions.map((s, k) => {
+        const d = energy.perSession[k].detail;
+        return { label: sessionTitle(s), time: s.time, minutes: num(s.minutes) || (d ? d.swimMin + d.restMin : 0), kcal: energy.perSession[k].kcal };
+    });
+    $('fuelSummary').textContent = `Hidratos de hoy: ${(targets.c / weight).toFixed(1).replace('.', ',')} g/kg por tu carga`;
+    $('fuelList').innerHTML = fuelPlan(list, weight, targets).map(p => `
+        <li class="supp-item">
+            <div class="supp-head"><span>${escapeHtml(p.title)}</span></div>
+            <div class="supp-desc">${escapeHtml(p.text)}</div>
+        </li>`).join('');
+}
+
 function renderRecommendations(weight, dayType, trainingMin) {
     const waterL = weight * 0.035 + (trainingMin / 60) * 0.6;
     $('recoSummary').innerText = `Bebe unos ${waterL.toFixed(1).replace('.', ',')} L hoy`;
     $('hydrationText').innerHTML = `En el agua también sudas: bebe 400–800 ml por hora de entrenamiento, con sales si la sesión pasa de 90 minutos.`;
 
-    const hard = dayType === 'Competición' || dayType === 'Sesión Única Intensa';
+    // Día de competición o con trabajo de zonas altas
+    const hard = dayType === 'Competición'
+        || sessions.some(s => s.type !== 'gym' && s.rpe >= 8)
+        || energy.perSession.some(ps => ps.detail && ['vo2', 'r200', 'r100', 'vel'].some(z => (ps.detail.byKey[z] || 0) >= 300));
     const supps = [
         { name: 'Creatina monohidrato', dose: '3–5 g/día', desc: 'Todos los días, a cualquier hora. Ayuda en salidas, virajes y fuerza.' },
         { name: 'Cafeína', dose: `${Math.round(weight * 3)}–${Math.round(weight * 6)} mg`, desc: '3–6 mg/kg, 45–60 min antes de competir o de una serie clave.', hl: hard },

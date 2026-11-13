@@ -646,3 +646,5 @@ input[type="time"] { min-height: 48px; }
 .set-line > span:last-child { white-space: nowrap; color: var(--text-3); }
 .set-total { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--line); color: var(--text); }
 .pb-input { width: 96px !important; }
+
+.s-grid input[type="time"] { min-height: 0; padding: 10px 8px; }

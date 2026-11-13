@@ -12,6 +12,7 @@ function init() {
     refreshFoodDatalist();
     appReady = true;
     migrateOldDraft();
+    autoCalibrate();
     openDate(todayLocalISO());
     renderFoodTable();
     renderHistory();

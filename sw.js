@@ -13,6 +13,7 @@ const ASSETS = [
     './css/app.css',
     './js/engine.js',
     './js/training.js',
+    './js/balance.js',
     './js/core.js',
     './js/today.js',
     './js/foods.js',

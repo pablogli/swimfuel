@@ -308,3 +308,82 @@ test('gasto base: las horas de entreno no cuentan dos veces', () => {
     near(baseEnergy(2000, 1.4, 180), 2800 - 100, 0.01);
     eq(baseEnergy(2000, 1.0, 180), 2000);
 });
+
+// ---------- Gasto real y macros ----------
+test('tendencia: un pesaje hinchado apenas la mueve', () => {
+    const xs = [0, 2, 4, 6, 8, 10, 12, 14], ys = xs.map(x => 80 - 0.02 * x);
+    ys[4] += 1.5;
+    const t = theilSen(xs, ys);
+    near(t.slope, -0.02, 0.004);
+    near(t.intercept, 80, 0.05);
+    eq(median([3, 1, 2]), 2);
+    eq(median([4, 1, 2, 3]), 2.5);
+});
+
+test('gasto real: sale de lo que comes y de la tendencia del peso', () => {
+    const today = '2026-03-30';
+    const hist = [];
+    for (let i = 1; i <= 28; i++) {
+        const x = 28 - i;
+        hist.push({ date: addDays(today, -i), kcalReal: 3500, kcalTarget: 3600, weighed: i % 2 === 0, weight: 80 - 0.02 * x + (i === 10 ? 1.5 : 0) });
+    }
+    hist[2].kcalReal = 1000;   // un día apuntado a medias
+    const a = expenditureAnalysis(hist, today, () => 3400);
+    ok(a.ready);
+    eq(a.partial, 1);
+    eq(a.fedDays, 27);
+    near(a.slopeWeek, -0.14, 0.02);
+    near(a.realTDEE, 3654, 20);
+    eq(a.suggested, 1.07);
+    ok(a.marginKcal > 0 && a.marginKcal < 400, `margen ${Math.round(a.marginKcal)}`);
+    const few = expenditureAnalysis(hist.filter((h, k) => k < 8), today, () => 3400);
+    ok(!few.ready);
+    eq(expenditureAnalysis([], today, () => 3400).weighIns, 0);
+});
+
+test('gasto real: el ajuste se limita y avanza poco a poco', () => {
+    const today = '2026-03-30';
+    const hist = [];
+    for (let i = 1; i <= 28; i++) hist.push({ date: addDays(today, -i), kcalReal: 2000, kcalTarget: 3000, weighed: true, weight: 80 });
+    eq(expenditureAnalysis(hist, today, () => 4000).suggested, 0.85);
+    eq(nextCalibration(1, 1.07, 1), 1.01);
+    eq(nextCalibration(1, 1.07, 30), 1.07);
+    eq(nextCalibration(1.1, 0.9, 2), 1.08);
+    eq(nextCalibration(1.03, 1.03, 5), 1.03);
+});
+
+test('macros: hidratos según la carga y energía cuadrada', () => {
+    near(carbsPerKg(0, 80, 'Normal'), 4, 0.001);
+    near(carbsPerKg(1950, 80, 'Normal'), 8.14, 0.01);
+    eq(carbsPerKg(9000, 80, 'Normal'), 10);
+    eq(carbsPerKg(300, 80, 'Competición'), 7);
+    eq(carbsPerKg(300, 80, 'Tapering'), 6);
+    const hard = macroTargets({ weight: 80, totalKcal: 4900, trainingKcal: 1950, goal: 'maint', specialty: 'sprint', dayType: 'Normal' });
+    eq(hard.p, 168);
+    near(hard.kcal, 4900, 15);
+    near(hard.f * 9 / 4900, 0.30, 0.005);
+    ok(hard.c / 80 > 8.1);
+    const rest = macroTargets({ weight: 80, totalKcal: 2900, trainingKcal: 0, goal: 'maint', specialty: 'sprint', dayType: 'Normal' });
+    near(rest.kcal, 2900, 15);
+    ok(rest.c < hard.c);
+    const cut = macroTargets({ weight: 80, totalKcal: 2600, trainingKcal: 1500, goal: 'cut', specialty: 'sprint', dayType: 'Normal' });
+    eq(cut.p, 184);
+    ok(cut.f >= 64, 'grasa mínima');
+    near(cut.kcal, 2600, 15);
+    eq(normalizeDayType('Doble Sesión Agua'), 'Normal');
+    eq(normalizeDayType('Competición'), 'Competición');
+});
+
+test('comer alrededor del entreno: doble sesión, madrugón y descanso', () => {
+    const targets = { p: 168 };
+    const plan = fuelPlan([
+        { label: 'Gimnasio', time: '16:00', minutes: 60, kcal: 300 },
+        { label: 'Agua', time: '07:00', minutes: 105, kcal: 1500 }
+    ], 80, targets);
+    eq(plan.map(p => p.title), ['Proteína', 'Agua de las 07:00', 'Gimnasio de las 16:00']);
+    ok(plan[0].text.includes('5 tomas de unos 35 g'), plan[0].text);
+    ok(plan[1].text.includes('desayuno completo') && plan[1].text.includes('Durante') && plan[1].text.includes('quedan unas 7 h'), plan[1].text);
+    ok(plan[2].text.includes('80–160 g') && plan[2].text.includes('comida completa'), plan[2].text);
+    eq(fuelPlan([], 80, targets).map(p => p.title), ['Proteína', 'Día de descanso']);
+    ok(fuelPlan([{ label: 'Agua', minutes: 90, kcal: 900 }, { label: 'Agua', minutes: 90, kcal: 900 }], 80, targets)[1].text.includes('hasta el siguiente entreno'));
+});
