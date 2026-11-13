@@ -635,3 +635,14 @@ input[type="time"] { min-height: 48px; }
 .list-row .ico.chev { width: 16px; height: 16px; }
 .evidence li { margin: 0 0 8px 18px; }
 .evidence .src { color: var(--text-3); }
+
+/* ---------- Series del entreno ---------- */
+.s-grid textarea { padding: 10px 12px; min-height: 124px; max-height: 50vh; field-sizing: content; line-height: 1.5; }
+.set-chips { flex-wrap: nowrap; overflow-x: auto; margin: 8px -16px 4px; padding: 0 16px 4px; scrollbar-width: none; }
+.set-chips::-webkit-scrollbar { display: none; }
+.set-chips .chip { flex: none; }
+.sets-lines { font-size: 12.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.set-line { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }
+.set-line > span:last-child { white-space: nowrap; color: var(--text-3); }
+.set-total { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--line); color: var(--text); }
+.pb-input { width: 96px !important; }

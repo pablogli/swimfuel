@@ -65,7 +65,7 @@ const SESSION_TYPES = {
     other: { label: 'Otro deporte' }
 };
 
-// Coste por metro frente al crol a igual esfuerzo (braza y mariposa son mucho menos eficientes)
+// Estilo base de la sesión (el coste de cada estilo está en training.js)
 const STROKES = {
     crawl: { label: 'Crol', factor: 1.0 },
     back: { label: 'Espalda', factor: 1.15 },
@@ -84,127 +84,6 @@ const GYM_TYPES = {
     mobility: { label: 'Movilidad / estiramientos', met: 2.5 }
 };
 
-// kcal EXTRA por metro y kg nadando crol a esfuerzo moderado (≈ 0,18 kcal/m para 80 kg)
-const SWIM_KCAL_PER_M_KG = 0.0022;
-
-// Para días guardados antes de las sesiones, que solo tenían el tipo de jornada
-const RPE_BY_DAYTYPE = {
-    'Agua + Gimnasio': 6, 'Doble Sesión Agua': 7, 'Sesión Única Intensa': 8,
-    'Competición': 8, 'Tapering': 4, 'Descanso': 3
-};
-
-function rpeLabel(rpe) {
-    if (rpe <= 2) return 'muy suave';
-    if (rpe <= 4) return 'suave';
-    if (rpe <= 6) return 'moderado';
-    if (rpe <= 8) return 'duro';
-    return rpe === 9 ? 'muy duro' : 'máximo';
-}
-
-// kcal por minuto POR ENCIMA del reposo (el reposo ya está en el gasto base)
-function netKcalPerMin(met, weight) {
-    return Math.max(0, met - 1) * 3.5 * weight / 200;
-}
-
-// Gasto extra de una sesión → { kcal, how } (how explica cómo se ha calculado)
-function sessionKcal(s, weight) {
-    const rpe = clamp(Math.round(num(s.rpe, 6)), 1, 10);
-    const minutes = Math.max(0, num(s.minutes));
-
-    if (s.type === 'swim') {
-        const meters = Math.max(0, num(s.meters));
-        const stroke = STROKES[s.stroke] || STROKES.crawl;
-        if (meters > 0) {
-            // Ir más rápido cuesta más por cada metro (la resistencia del agua crece con la velocidad)
-            const intensity = 1 + 0.06 * (rpe - 6);
-            const swimming = meters * SWIM_KCAL_PER_M_KG * weight * stroke.factor * intensity;
-            // El resto de la sesión (descansos, explicaciones, técnica parado) cuenta como actividad ligera
-            const metersPerMin = (55 + 4 * rpe) / Math.sqrt(stroke.factor); // ritmo aproximado de nadador entrenado
-            const restMin = Math.max(0, minutes - meters / metersPerMin);
-            const resting = netKcalPerMin(2.5, weight) * restMin;
-            return {
-                kcal: swimming + resting,
-                how: `por metros (${fmtInt(meters)} m, ${stroke.label.toLowerCase()}, intensidad ${rpe})` +
-                    (restMin >= 5 ? ` + ~${Math.round(restMin)} min de descansos` : '')
-            };
-        }
-        // Sin metros: por tiempo, con un MET que ya incluye los descansos de un entreno normal
-        const met = 3.5 + 0.7 * rpe;
-        return {
-            kcal: netKcalPerMin(met, weight) * minutes,
-            how: minutes ? `por minutos (MET ${met.toFixed(1)}). Pon los metros para afinar.` : 'añade los metros o los minutos'
-        };
-    }
-
-    if (s.type === 'gym') {
-        const type = GYM_TYPES[s.gymType] || GYM_TYPES.strength;
-        const met = type.met * (1 + 0.07 * (rpe - 6));
-        return { kcal: netKcalPerMin(met, weight) * minutes, how: `según el tipo (${type.label}, MET ${met.toFixed(1)})` };
-    }
-
-    const met = 2 + rpe; // otro deporte: de MET 3 (muy suave) a 12 (máximo)
-    return { kcal: netKcalPerMin(met, weight) * minutes, how: `por minutos e intensidad (MET ${met.toFixed(1)})` };
-}
-
-// Suma los metros de unas series escritas como en la pizarra:
-// "400 + 8x100 c/1:30 + 3x(4x50 + 100) + 200 suave" → 2.000 m
-function parseSetsMeters(text) {
-    let t = String(text || '').toLowerCase().replace(/[×*]/g, 'x');
-    t = t.replace(/(\d{1,2})\.(\d{3})\b/g, '$1$2');                       // 1.500 → 1500
-    t = t.replace(/\d+\s*[:'’´]\s*\d*\s*["”'’´]*/g, ' ');                   // tiempos: 1:30, 1'30''
-    t = t.replace(/\d+[.,]\d+/g, ' ');                                     // tiempos con punto: c/1.30
-    t = t.replace(/\d+\s*(?:segundos|seg|s|minutos|mins|min)\b/g, ' ');    // descansos: 20s, 2 min
-    t = t.replace(/\b(?:rpe|zona|z|fc|ppm)\s*\d+/g, ' ');                  // rpe 7, z2, fc 160
-    t = t.replace(/(\d|\))\s*x\s*(?=[\d(])/g, '$1 * ');                    // 8x100 → 8 * 100
-    t = t.replace(/[^\d*()]+/g, ' ');                                      // palabras, +, comas… separan
-
-    const tokens = t.match(/\d+|\*|\(|\)/g) || [];
-    let i = 0;
-    const isNum = tok => /^\d+$/.test(tok || '');
-    // Una distancia suelta debe ser múltiplo de 25 (así "8 series" o "fc 160" no suman)
-    const dist = n => (n >= 25 && n <= 20000 && n % 25 === 0 ? n : 0);
-
-    function term() {
-        const tok = tokens[i];
-        if (tok === '(') {
-            i++;
-            const v = seq();
-            if (tokens[i] === ')') i++;
-            return v;
-        }
-        if (!isNum(tok)) return 0;
-        const n = parseInt(tok, 10);
-        i++;
-        if (tokens[i] !== '*') return dist(n);
-        i++;
-        // Par simple: "8x100" o al revés "100x8"
-        if (isNum(tokens[i]) && tokens[i + 1] !== '*') {
-            const m = parseInt(tokens[i], 10);
-            i++;
-            if (dist(m)) return n * m;
-            return dist(n) && m <= 100 ? n * m : 0;
-        }
-        return n <= 100 ? n * term() : 0; // "3x(…)" o "2x4x50"
-    }
-
-    function seq() {
-        let total = 0;
-        while (i < tokens.length && tokens[i] !== ')') {
-            const before = i;
-            total += term();
-            if (i === before) i++;
-        }
-        return total;
-    }
-
-    let total = 0;
-    while (i < tokens.length) {
-        total += seq();
-        i++; // salta un ")" sin pareja
-    }
-    return Math.round(total);
-}
-
 function sanitizeSession(s) {
     if (!s || !SESSION_TYPES[s.type]) return null;
     return {
@@ -214,7 +93,7 @@ function sanitizeSession(s) {
         rpe: clamp(Math.round(num(s.rpe, 6)), 1, 10),
         meters: s.type === 'swim' ? clamp(num(s.meters), 0, 30000) : 0,
         stroke: STROKES[s.stroke] ? s.stroke : 'crawl',
-        sets: String(s.sets || '').slice(0, 300),
+        sets: String(s.sets || '').slice(0, 2000),
         metersFromSets: Boolean(s.metersFromSets),
         gymType: GYM_TYPES[s.gymType] ? s.gymType : 'strength',
         label: String(s.label || '').slice(0, 40)

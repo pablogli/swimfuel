@@ -20,7 +20,7 @@ function init() {
     document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 
     // Datos del día y perfil → recalcular objetivos y guardar el día
-    ['weight', 'dayType', 'sex', 'age', 'height', 'specialty', 'goal', 'activity'].forEach(id => {
+    ['weight', 'dayType', 'sex', 'age', 'height', 'specialty', 'goal', 'activity', 'pb50', 'pb100', 'pb200', 'pb400', 'bodyFat'].forEach(id => {
         const evt = $(id).tagName === 'SELECT' ? 'change' : 'input';
         $(id).addEventListener(evt, () => { recalculateTargets(); scheduleSave(); });
     });

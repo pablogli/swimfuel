@@ -325,15 +325,31 @@
             </div>
             <p class="footnote" id="calibrationInfo"></p>
 
+            <div class="section-title">Tus marcas de crol (para calcular tus ritmos)</div>
+            <div class="list">
+                <label class="list-row"><span>50 m</span><input type="text" id="pb50" class="inline-input pb-input" inputmode="decimal" placeholder="26.5" maxlength="9" autocomplete="off"></label>
+                <label class="list-row"><span>100 m</span><input type="text" id="pb100" class="inline-input pb-input" inputmode="decimal" placeholder="57.0" maxlength="9" autocomplete="off"></label>
+                <label class="list-row"><span>200 m</span><input type="text" id="pb200" class="inline-input pb-input" inputmode="decimal" placeholder="2.05.0" maxlength="9" autocomplete="off"></label>
+                <label class="list-row"><span>400 m</span><input type="text" id="pb400" class="inline-input pb-input" inputmode="decimal" placeholder="4.25.0" maxlength="9" autocomplete="off"></label>
+            </div>
+            <p class="footnote" id="pacesInfo"></p>
+            <div class="list" style="margin-top:14px;">
+                <label class="list-row">
+                    <span>Grasa corporal, si la sabes</span>
+                    <span class="inline-field"><input type="number" id="bodyFat" class="inline-input" min="4" max="45" step="0.5" inputmode="decimal" placeholder="—"><span>%</span></span>
+                </label>
+            </div>
+
             <details class="footnote" style="margin-top:16px;">
                 <summary style="cursor:pointer; color:var(--text);">Cómo se calculan los objetivos</summary>
                 <ul style="margin:8px 0 0 18px;">
-                    <li><strong>Gasto base:</strong> metabolismo basal (Mifflin-St Jeor) × tu actividad fuera de los entrenos.</li>
-                    <li><strong>Agua con metros:</strong> 0,0022 kcal por metro y kg, × estilo (espalda ×1,15, estilos ×1,25, piernas/técnica ×1,3, mariposa ×1,4, braza ×1,45) × intensidad (±6% por punto sobre 6). El tiempo sin nadar suma como actividad ligera (MET 2,5).</li>
-                    <li><strong>Agua sin metros:</strong> por minutos, con MET 3,5 + 0,7 × intensidad.</li>
-                    <li><strong>Gimnasio:</strong> MET según el tipo (fuerza 5, potencia 6, circuito 8, seco 4,5, movilidad 2,5), ±7% por punto de intensidad.</li>
-                    <li>Los entrenos suman solo el gasto <em>extra</em> (MET − 1): el reposo ya está en el gasto base.</li>
-                    <li><strong>Ajuste por tus datos:</strong> con 2–4 semanas de comidas y pesajes se compara lo que comes con la tendencia de tu peso.</li>
+                    <li><strong>Gasto base:</strong> metabolismo en reposo con la fórmula para deportistas de ten Haaf y Weijs (2014), o con tu masa magra si pones el % de grasa, × tu actividad fuera de los entrenos. Margen ±10 %.</li>
+                    <li><strong>Agua, por series:</strong> cada serie tiene una velocidad según su zona y tus marcas. El coste por metro sale de lo medido en nadadores de élite (Capelli 1998): a ritmo de 100 cuesta casi el doble que en aeróbico ligero. Espalda, mariposa y braza cuestan más que el crol; pies y técnica van más lentos y cada metro cuesta más; con aletas, menos (Zamparo 2002).</li>
+                    <li><strong>Descansos y después:</strong> el tiempo en la pared cuenta como actividad ligera, y se suma un 6–12 % por el gasto tras el esfuerzo, mayor en las zonas altas (LaForgia 2006).</li>
+                    <li><strong>Agua, sin zonas:</strong> con metros e intensidad se usa una velocidad media (margen ±20 %); solo con minutos, un MET de 3,5 + 0,7 × intensidad (±30 %).</li>
+                    <li><strong>Gimnasio:</strong> MET según el tipo (fuerza 5, potencia 6, circuito 8, seco 4,5, movilidad 2,5), ±7 % por punto de intensidad y +10 % tras fuerza, potencia o circuito.</li>
+                    <li>Los entrenos suman solo el gasto <em>extra</em>: el reposo ya está en el gasto base.</li>
+                    <li><strong>Ajuste por tus datos:</strong> con 2–4 semanas de comidas y pesajes se compara lo que comes con la tendencia de tu peso. Es lo que más afina: corrige lo que las fórmulas no saben de ti.</li>
                     <li>Proteína 2,1 g/kg (1,9 en fondo; 2,3 en definición). Carbohidratos de 4 g/kg (descanso) a 8,5 g/kg (doble sesión), +1 en fondo. Grasas: el resto, entre 1 g/kg y el 30% de las kcal.</li>
                 </ul>
             </details>
@@ -549,6 +565,7 @@
 </div>
 
 <script src="js/engine.js"></script>
+<script src="js/training.js"></script>
 <script src="js/core.js"></script>
 <script src="js/today.js"></script>
 <script src="js/foods.js"></script>

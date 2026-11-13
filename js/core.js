@@ -16,7 +16,7 @@ const STORAGE_KEY_SCHEMA = 'swimfuel_schema';
 // tal cual hasta que lo editas, y al leerlo se rellenan los campos que le falten.
 const SCHEMA_VERSION = 4;
 
-const PROFILE_FIELDS = ['sex', 'age', 'height', 'specialty', 'goal', 'activity'];
+const PROFILE_FIELDS = ['sex', 'age', 'height', 'specialty', 'goal', 'activity', 'pb50', 'pb100', 'pb200', 'pb400', 'bodyFat'];
 
 const COLOR = { ok: '#10b981', warn: '#f59e0b', error: '#f43f5e', info: '#0072ff' };
 

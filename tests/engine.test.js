@@ -171,3 +171,140 @@ test('sueño: patrón de comer más tras dormir poco', () => {
     ok(p[0].title.startsWith('+350 kcal'), p[0].title);
     eq(sleepPatterns(hist.slice(0, 5), today, 510), []);
 });
+
+// ---------- Series por zonas (entreno real del usuario) ----------
+const REAL_SESSION = `300 nadar crol
+300 nadar estilos sin crol con aletas
+300 mariposa con aletas 25 nadar 25 técnica
+12x50(1 AEL, 1 pies, 1AEM estilos)
+8x150 AEL
+2x(3x200AEL,4X150 AEM, 200 recuperación)
+400 Suaves`;
+
+test('series: el entreno real suma 5.900 m y reconoce zonas, estilos y material', () => {
+    const p = parseSets(REAL_SESSION);
+    eq(Math.round(p.meters), 5900);
+    ok(p.hasZones);
+    const line = n => p.blocks.filter(b => b.line === n);
+    eq(line(0).map(b => [b.meters, b.stroke, b.mode]), [[300, 'crawl', 'swim']]);
+    eq(line(1).map(b => [b.meters, b.stroke, b.fins]), [[300, 'im', true]]);
+    eq(line(2).map(b => [b.meters, b.stroke, b.mode, b.fins]), [[150, 'fly', 'swim', true], [150, 'fly', 'drill', true]]);
+    eq(line(3).map(b => [b.meters, b.zone, b.mode, b.stroke]), [[200, 'ael', undefined, undefined], [200, undefined, 'kick', undefined], [200, 'aem', undefined, 'im']]);
+    eq(line(4).map(b => [b.meters, b.zone, b.reps]), [[1200, 'ael', 8]]);
+    eq(line(5).map(b => [b.meters, b.zone]), [[1200, 'ael'], [1200, 'aem'], [400, 'rec']]);
+    eq(line(6).map(b => [b.meters, b.zone]), [[400, 'rec']]);
+});
+
+test('series: zonas escritas de varias formas', () => {
+    const z = t => parseSets(t).blocks.map(b => b.zone);
+    eq(z('8x50 R200'), ['r200']);
+    eq(z('8x50 ritmo de 100'), ['r100']);
+    eq(z('6x100 vo2 max'), ['vo2']);
+    eq(z('4x25 potencia'), ['vel']);
+    eq(z('10x100 A2'), ['aem']);
+    eq(z('400 aeróbico intenso'), ['aei']);
+    eq(z('6x200 umbral'), ['aei']);
+    eq(z('200 rec'), ['rec']);
+});
+
+test('series: salidas y descansos', () => {
+    eq(parseSets('8x100 c/1:30 AEM').blocks[0].interval, 90);
+    eq(parseSets("6x200 c/2'45''").blocks[0].interval, 165);
+    eq(parseSets('8x50 desc 20').blocks[0].rest, 20);
+    eq(parseSets('4x50 r15').blocks[0].rest, 15);
+    eq(parseSets('3x100 desc 1:30').blocks[0].rest, 90);
+    eq(parseSetsMeters('10x15 vel'), 150);
+});
+
+test('series: distancias sin separador y repartos', () => {
+    eq(parseSetsMeters('400 crol 200 espalda 100 braza'), 700);
+    eq(parseSetsMeters('400 estilos 100 de cada'), 400);
+    eq(parseSets('300 crol 25 fuerte 25 suave').blocks.map(b => [b.meters, b.zone]), [[150, 'vo2'], [150, 'rec']]);
+    eq(parseSets('3x(100 AEM, 50 pies) aletas').blocks.map(b => [b.meters, b.fins]), [[300, true], [150, true]]);
+});
+
+// ---------- Marcas y ritmos ----------
+test('marcas: se leen los tiempos en varios formatos', () => {
+    eq(parseTime('50.7'), 50.7);
+    eq(parseTime('50,7'), 50.7);
+    eq(parseTime('1:52.7'), 112.7);
+    eq(parseTime('1:52:7'), 112.7);
+    eq(parseTime('1.52.7'), 112.7);
+    eq(parseTime('4:05'), 245);
+    eq(parseTime('4.05'), 245);
+    eq(parseTime(''), 0);
+    eq(parseTime('abc'), 0);
+});
+
+test('marcas: los ritmos suben de zona en zona y salen de tus tiempos', () => {
+    const p = swimPaces({ pb50: '23.4', pb100: '50.7', pb200: '1:52.7' });
+    ok(p.known);
+    near(p.css, 1.535, 0.01, 'velocidad crítica');
+    ZONE_KEYS.forEach((z, i) => { if (i) ok(p.speeds[z] > p.speeds[ZONE_KEYS[i - 1]], `${z} más rápido que la zona anterior`); });
+    near(100 / p.speeds.ael, 75.7, 1.5, 'AEL por 100');
+    near(100 / p.speeds.r100, 52.8, 0.3, 'R100 por 100');
+    ok(!swimPaces({}).known);
+    near(swimPaces({ pb200: '2:00', pb400: '4:15' }).css, 200 / 135, 0.001);
+});
+
+// ---------- Gasto ----------
+test('gasto: el entreno real da un valor coherente con los estudios', () => {
+    const paces = swimPaces({ pb50: '23.4', pb100: '50.7', pb200: '1:52.7' });
+    const s = sanitizeSession({ type: 'swim', minutes: 105, sets: REAL_SESSION, meters: 5900, metersFromSets: true });
+    const r = sessionKcal(s, { weight: 80, sex: 'M', paces });
+    eq(r.detail.meters, 5900);
+    ok(r.detail.hasZones);
+    const perKm = r.kcal / 5.9;
+    ok(perKm > 230 && perKm < 330, `kcal por km fuera de rango: ${Math.round(perKm)}`);
+    eq(r.pct, 15);
+    ok(r.detail.swimMin > 70 && r.detail.swimMin < 100, `minutos nadando: ${Math.round(r.detail.swimMin)}`);
+    eq(Object.keys(r.detail.lines).length, 7);
+});
+
+test('gasto: cada zona cuesta más por metro que la anterior', () => {
+    const ctx = { weight: 78, sex: 'M', paces: swimPaces({ pb100: '50.7', pb200: '1:52.7', pb50: '23.4' }) };
+    const k = text => sessionKcal(sanitizeSession({ type: 'swim', sets: text, metersFromSets: true }), ctx).kcal;
+    const zones = ['rec', 'AEL', 'AEM', 'AEI', 'VO2', 'R200', 'R100', 'VEL'].map(z => k(`1000 ${z}`));
+    zones.forEach((v, i) => { if (i) ok(v > zones[i - 1], `zona ${i}: ${Math.round(v)} no supera ${Math.round(zones[i - 1])}`); });
+    // A ritmo de 100, el metro cuesta entre 1,6 y 2,6 veces lo que en aeróbico ligero (sin contar descansos)
+    const swimOnly = z => { const d = sessionKcal(sanitizeSession({ type: 'swim', sets: `1000 ${z} c/0:01`, metersFromSets: true }), ctx); return d.kcal; };
+    const ratio = swimOnly('R100') / swimOnly('AEL');
+    ok(ratio > 1.6 && ratio < 2.6, `R100/AEL = ${ratio.toFixed(2)}`);
+});
+
+test('gasto: estilos, pies, aletas y peso', () => {
+    const ctx = { weight: 78, sex: 'M', paces: swimPaces({ pb200: '1:52.7' }) };
+    const k = (text, c = ctx) => sessionKcal(sanitizeSession({ type: 'swim', sets: text, metersFromSets: true }), c).kcal;
+    ok(k('1000 AEM braza') > k('1000 AEM mariposa'), 'braza > mariposa');
+    ok(k('1000 AEM mariposa') > k('1000 AEM'), 'mariposa > crol');
+    ok(k('1000 AEM espalda') > k('1000 AEM'), 'espalda > crol');
+    ok(k('1000 AEM pies') > k('1000 AEM'), 'pies > nado');
+    ok(k('1000 AEM pies aletas') < k('1000 AEM pies'), 'pies con aletas < pies');
+    ok(k('1000 AEM aletas') < k('1000 AEM'), 'aletas < sin aletas');
+    const finsCut = 1 - k('1000 AEM aletas c/0:01') / k('1000 AEM c/0:01');
+    ok(finsCut > 0.04 && finsCut < 0.16, `aletas en nado completo: −${Math.round(finsCut * 100)} %`);
+    ok(k('1000 AEM', { ...ctx, weight: 60 }) < k('1000 AEM'), 'menos peso, menos gasto');
+    ok(k('1000 AEM', { ...ctx, sex: 'F' }) < k('1000 AEM'), 'mujer, menos gasto a igual velocidad');
+});
+
+test('gasto: si corriges los metros a mano se respeta tu total', () => {
+    const ctx = { weight: 78, sex: 'M', paces: swimPaces({}) };
+    const auto = sessionKcal(sanitizeSession({ type: 'swim', sets: '10x100 AEM c/0:01', meters: 1000, metersFromSets: true }), ctx);
+    const manual = sessionKcal(sanitizeSession({ type: 'swim', sets: '10x100 AEM c/0:01', meters: 2000, metersFromSets: false }), ctx);
+    near(manual.kcal / auto.kcal, 2, 0.01);
+    eq(manual.detail.meters, 2000);
+    eq(auto.pct, 20);
+});
+
+test('gasto base: fórmula para deportistas y con masa magra', () => {
+    near(restingEnergy({ sex: 'M', age: 20, height: 186, weight: 80 }), 2106, 2);
+    near(restingEnergy({ sex: 'F', age: 20, height: 170, weight: 60 }), 1583, 2);
+    near(restingEnergy({ sex: 'M', age: 20, height: 186, weight: 80, bodyFat: 10 }), 22.771 * 72 + 484.264, 0.01);
+    near(dayMargin(3000, [{ kcal: 1000, pct: 15 }, { kcal: 300, pct: 25 }]), Math.sqrt(300 ** 2 + 150 ** 2 + 75 ** 2), 0.01);
+});
+
+test('gasto base: las horas de entreno no cuentan dos veces', () => {
+    eq(baseEnergy(2000, 1.4, 0), 2800);
+    near(baseEnergy(2000, 1.4, 180), 2800 - 100, 0.01);
+    eq(baseEnergy(2000, 1.0, 180), 2000);
+});

@@ -2,7 +2,7 @@
 // Tus datos NO pasan por aquí (están en el almacenamiento del navegador); esto solo guarda los archivos de la app.
 // Al publicar cambios, sube el número de versión: el móvil descarga la versión nueva ENTERA (nunca mezcla
 // archivos de dos versiones) y la app avisa para recargar.
-const CACHE = 'swimfuel-v6';
+const CACHE = 'swimfuel-v7';
 
 // La página principal se guarda como "./" (no "./index.html"): algunos alojamientos, como Cloudflare,
 // redirigen /index.html a / y una respuesta redirigida no puede usarse para abrir la app.
@@ -12,6 +12,7 @@ const ASSETS = [
     './manifest.webmanifest',
     './css/app.css',
     './js/engine.js',
+    './js/training.js',
     './js/core.js',
     './js/today.js',
     './js/foods.js',

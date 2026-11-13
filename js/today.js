@@ -12,14 +12,20 @@ function computeEnergy(weight) {
     const activity = clamp(num($('activity').value, 1.4) || 1.4, 1.2, 1.9);
     const goal = $('goal').value;
 
-    const bmr = 10 * weight + 6.25 * height - 5 * age + (sex === 'M' ? 5 : -161); // Mifflin-St Jeor
-    const base = bmr * activity;
-    const perSession = sessions.map(s => ({ id: s.id, type: s.type, ...sessionKcal(s, weight) }));
+    const bmr = restingEnergy({ sex, age, height, weight, bodyFat: $('bodyFat').value });
+    const paces = swimPaces({ pb50: $('pb50').value, pb100: $('pb100').value, pb200: $('pb200').value, pb400: $('pb400').value });
+    const perSession = sessions.map(s => ({ id: s.id, type: s.type, ...sessionKcal(s, { weight, sex, paces }) }));
+    const trainMin = sessions.reduce((a, s, k) => {
+        const d = perSession[k].detail;
+        return a + (num(s.minutes) || (d ? d.swimMin + d.restMin : 0));
+    }, 0);
+    const base = baseEnergy(bmr, activity, trainMin);
     const training = perSession.reduce((a, s) => a + s.kcal, 0);
     const calibration = getCalibration();
     const maint = (base + training) * calibration;
     const goalAdj = goal === 'surplus' ? 300 : goal === 'cut' ? -300 : 0;
-    return { bmr, activity, base, perSession, training, calibration, maint, goalAdj, total: maint + goalAdj };
+    const margin = dayMargin(base, perSession) * calibration;
+    return { bmr, activity, base, perSession, training, calibration, maint, goalAdj, paces, margin, total: maint + goalAdj };
 }
 
 function recalculateTargets() {
@@ -78,7 +84,11 @@ function paintEnergy() {
         el.querySelector('.s-kcal').innerHTML = `${fmtInt(ps.kcal)} <small>kcal</small>`;
         el.querySelector('.s-title').textContent = sessionTitle(s);
         el.querySelector('.s-sub').textContent = sessionSubtitle(s);
-        el.querySelector('.s-how').textContent = `Calculado ${ps.how}`;
+        el.querySelector('.s-how').textContent = `Calculado ${ps.how}. Margen ±${ps.pct} %`;
+        const linesBox = el.querySelector('[data-lines]');
+        if (linesBox) linesBox.innerHTML = swimLinesHtml(ps.detail);
+        const rpeBox = el.querySelector('[data-rpe-box]');
+        if (rpeBox && s.type === 'swim') rpeBox.hidden = Boolean(ps.detail && ps.detail.hasZones);
     });
 
     const byType = { swim: 0, gym: 0, other: 0 };
@@ -91,14 +101,39 @@ function paintEnergy() {
     let html = energy.calibration !== 1
         ? `Gasto estimado: (${parts.join(' + ')}) × ${energy.calibration.toFixed(2)} por tus datos`
         : `Gasto estimado: ${parts.join(' + ')}`;
-    html += ` = <strong>${fmtInt(energy.maint)} kcal</strong>`;
+    html += ` = <strong>${fmtInt(energy.maint)} kcal</strong> (±${fmtInt(Math.round(energy.margin / 10) * 10)})`;
     if (energy.goalAdj) html += `, ${energy.goalAdj > 0 ? '+' : '−'}${Math.abs(energy.goalAdj)} por tu objetivo`;
     html += '.';
     if (!isWeighed()) html += ` Con tu último peso (${fallbackWeight().toFixed(1)} kg).`;
     $('energyBreakdown').innerHTML = html;
+
+    // Ritmos que la app deduce de tus marcas (Perfil)
+    const p = energy.paces;
+    $('pacesInfo').innerHTML = (p.known ? 'Tus ritmos de crol por 100 m: ' : 'Sin marcas se suponen estos ritmos por 100 m: ') +
+        ZONE_KEYS.map(z => `${ZONES[z].short} <strong>${fmtPace(p.speeds[z])}</strong>`).join(' · ') +
+        '. Con el 200 y el 400 salen más ajustados.';
 }
 
 // ---------- Entrenos: filas que se despliegan al tocarlas ----------
+const SET_CHIPS = ['AEL', 'AEM', 'AEI', 'VO2', 'R200', 'R100', 'VEL', 'suave', 'pies', 'brazos', 'técnica', 'aletas', 'palas', 'espalda', 'braza', 'mariposa', 'estilos'];
+
+// Lo que la app ha entendido de cada línea de las series, con su gasto
+function swimLinesHtml(detail) {
+    if (!detail) return '';
+    const rows = Object.keys(detail.lines).map(Number).sort((a, b) => a - b).map(k => {
+        const l = detail.lines[k];
+        const parts = l.parts.length > 1
+            ? ': ' + l.parts.map(p => `${fmtInt(p.meters)} ${p.label}`.trim()).join(' · ')
+            : (l.parts[0].label ? ' ' + l.parts[0].label : '');
+        return `<div class="set-line"><span>${fmtInt(l.meters)} m${escapeHtml(parts)}</span><span>${fmtInt(l.kcal)} kcal</span></div>`;
+    });
+    const name = k => (ZONES[k] ? ZONES[k].short : SWIM_MODES[k] ? SWIM_MODES[k].label : '');
+    const order = [...ZONE_KEYS, 'kick', 'pull', 'drill'];
+    const totals = order.filter(k => detail.byKey[k]).map(k => `${name(k)} ${fmtInt(detail.byKey[k])}`);
+    if (rows.length && totals.length > 1) rows.push(`<div class="set-total">${escapeHtml(totals.join(' · '))} m</div>`);
+    return rows.join('');
+}
+
 const openSessions = new Set();
 
 function optionsHtml(map, selected) {
@@ -121,7 +156,7 @@ function sessionSubtitle(s) {
         if (s.type === 'gym') parts.push((GYM_TYPES[s.gymType] || GYM_TYPES.strength).label);
         if (num(s.minutes)) parts.push(`${num(s.minutes)} min`);
     }
-    parts.push(`intensidad ${s.rpe}`);
+    if (s.type !== 'swim' || !parseSets(s.sets).hasZones) parts.push(`intensidad ${s.rpe}`);
     return parts.join(' · ');
 }
 
@@ -146,13 +181,15 @@ function buildSessionCard(s) {
     if (s.type === 'swim') {
         fields = `
             <div class="span-all">
-                <label>Series</label>
-                <input type="text" data-f="sets" value="${escapeHtml(s.sets)}" placeholder="400 + 8x100 c/1:30 + 4x50 piernas" autocomplete="off">
+                <label>Series, una por línea</label>
+                <textarea data-f="sets" rows="5" placeholder="300 crol&#10;8x100 c/1:30 AEM&#10;12x50 (1 AEL, 1 pies)&#10;6x50 R100 c/2:00&#10;200 suave" autocomplete="off" autocapitalize="off" spellcheck="false">${escapeHtml(s.sets)}</textarea>
+                <div class="chips set-chips" data-chips></div>
+                <div class="sets-lines" data-lines></div>
                 <div class="sets-hint" data-hint></div>
             </div>
             <div><label>Metros</label><input type="number" data-f="meters" value="${s.meters || ''}" min="0" step="50" inputmode="numeric" placeholder="—"></div>
             ${minutesField}
-            <div><label>Estilo</label><select data-f="stroke">${optionsHtml(STROKES, s.stroke)}</select></div>`;
+            <div><label>Estilo base</label><select data-f="stroke">${optionsHtml(STROKES, s.stroke)}</select></div>`;
     } else if (s.type === 'gym') {
         fields = `
             <div class="span-2"><label>Tipo</label><select data-f="gymType">${optionsHtml(GYM_TYPES, s.gymType)}</select></div>
@@ -172,7 +209,7 @@ function buildSessionCard(s) {
         </button>
         <div class="session-body">
             <div class="s-grid">${fields}</div>
-            <div class="rpe">
+            <div class="rpe" data-rpe-box>
                 <div class="rpe-top"><span>Intensidad</span><strong data-rpe-label></strong></div>
                 <input type="range" data-f="rpe" min="1" max="10" step="1" value="${s.rpe}" aria-label="Intensidad del 1 al 10">
             </div>
@@ -199,7 +236,7 @@ function buildSessionCard(s) {
         const m = parseSetsMeters(s.sets);
         hint.textContent = m
             ? `${fmtInt(m)} m en total`
-            : (s.sets.trim() ? 'No encuentro metros: escríbelos en "Metros".' : 'Escribe las series y se suman los metros solos.');
+            : (s.sets.trim() ? 'No encuentro metros: escríbelos en "Metros".' : 'Escribe cada serie con su zona (AEL, AEM, AEI, VO2, R200, R100, VEL) y la app suma los metros y el gasto.');
         hint.style.color = m ? '' : 'var(--text-3)';
     };
     paintHint();
@@ -208,7 +245,7 @@ function buildSessionCard(s) {
         input.addEventListener(input.tagName === 'SELECT' ? 'change' : 'input', () => {
             const f = input.dataset.f;
             if (f === 'sets') {
-                s.sets = input.value.slice(0, 300);
+                s.sets = input.value.slice(0, 2000);
                 const m = parseSetsMeters(s.sets);
                 // Las series rellenan "Metros", salvo que hayas escrito tú los metros a mano
                 if (m && (s.metersFromSets || !num(s.meters))) {
@@ -235,6 +272,29 @@ function buildSessionCard(s) {
             scheduleSave();
         });
     });
+
+    // Botones que escriben la zona, el estilo o el material donde está el cursor (sin cerrar el teclado)
+    const chipBox = el.querySelector('[data-chips]');
+    if (chipBox) {
+        const area = el.querySelector('[data-f="sets"]');
+        SET_CHIPS.forEach(word => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'chip';
+            b.textContent = word;
+            b.addEventListener('pointerdown', e => e.preventDefault());
+            b.addEventListener('click', () => {
+                const pos = area.selectionStart ?? area.value.length;
+                const before = area.value.slice(0, pos);
+                const ins = (before && !/\s$/.test(before) ? ' ' : '') + word + ' ';
+                area.value = before + ins + area.value.slice(area.selectionEnd ?? pos);
+                area.focus();
+                area.setSelectionRange(pos + ins.length, pos + ins.length);
+                area.dispatchEvent(new Event('input'));
+            });
+            chipBox.appendChild(b);
+        });
+    }
 
     el.querySelector('[data-act="remove"]').addEventListener('click', () => {
         sessions = sessions.filter(x => x.id !== s.id);
