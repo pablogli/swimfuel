@@ -64,6 +64,7 @@ const ICONS = {
     gym: '<path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/>',
     other: '<path d="M3 12h4l2.5-6 5 12 2.5-6h4"/>',
     drop: '<path d="M12 3.5s6 6.4 6 10.5a6 6 0 0 1-12 0c0-4.1 6-10.5 6-10.5z"/>',
+    moon: '<path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7z"/>',
     check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
     trash: '<path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>',
     edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
@@ -174,6 +175,7 @@ let pendingMealAdd = null;  // { slotId, grams } si el modal se abrió desde una
 let kcalTouched = false;    // el usuario escribió las kcal a mano: no recalcular
 let aiImageBase64 = null;
 let appReady = false;
+let sleepState = null;                               // sueño de la noche del día abierto (o null)
 
 // ==========================================================
 // CARGA Y GUARDADO
@@ -275,6 +277,7 @@ function dayHasContent() {
     return mealSlots.some(s => (mealsState[s.id] || []).length > 0)
         || $('logNotes').value.trim() !== ''
         || isWeighed()
+        || Boolean(sleepState)
         || sessions.some(s => s.sets.trim() || num(s.meters) > 0);
 }
 
@@ -304,6 +307,7 @@ function buildRecord(date) {
         pReal: totals.p, pTarget: targets.p,
         fReal: totals.f, fTarget: targets.f,
         notes: $('logNotes').value.trim(),
+        sleep: sleepState ? { ...sleepState } : null,
         mealsTextSummary,
         mealsSnapshot: JSON.parse(JSON.stringify(currentMeals())),
         mealSlotsSnapshot: cloneSlots(mealSlots)
@@ -394,6 +398,7 @@ function openDate(date) {
             ? sanitizeSessions(rec.sessions)
             : legacySessions(rec.dayType, rec.swimMin, rec.gymMin);
         $('logNotes').value = rec.notes || '';
+        sleepState = sanitizeSleep(rec.sleep);
         const slots = sanitizeMealSlots(rec.mealSlotsSnapshot);
         mealSlots = slots.length ? slots : cloneSlots(templateSlots);
         mealsState = sanitizeMeals(rec.mealsSnapshot);
@@ -404,6 +409,7 @@ function openDate(date) {
         $('weight').value = '';
         sessions = templateSessions(prof);
         $('logNotes').value = '';
+        sleepState = null;
         mealSlots = cloneSlots(templateSlots);
         mealsState = {};
     }
@@ -411,6 +417,7 @@ function openDate(date) {
 
     renderMeals();
     renderSessions();
+    updateSleepRow();
     recalculateTargets();
     updateDateNav();
     updateSaveIndicator();
@@ -452,6 +459,7 @@ function switchTab(tab) {
     window.scrollTo(0, 0);
     if (tab === 'foods') renderFoodTable();
     if (tab === 'history') renderHistory();
+    if (tab === 'sleep') renderSleepTab();
 }
 
 function openModal(id) {

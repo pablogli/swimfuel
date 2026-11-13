@@ -153,7 +153,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
 /* ---------- Campos ---------- */
-input[type="text"], input[type="number"], input[type="search"], input[type="password"], select, textarea {
+input[type="text"], input[type="number"], input[type="search"], input[type="password"], input[type="time"], select, textarea {
     width: 100%;
     background: var(--surface-2);
     border: 1px solid transparent;
@@ -618,3 +618,20 @@ details.disclosure[open] > summary .s-chev { transform: rotate(180deg); }
     .modal-box { border-radius: 24px; padding-bottom: 0; }
     .grabber { display: none; }
 }
+
+/* ---------- Sueño ---------- */
+.tab { width: clamp(64px, 21vw, 92px); }
+.status-info { background: var(--accent-soft); color: var(--accent); }
+.sleep-big { font-size: 34px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.advice { background: var(--surface); border-radius: 18px; padding: 14px 16px; }
+.advice + .advice { margin-top: 10px; }
+.advice-title { font-weight: 600; margin: 8px 0 2px; }
+.advice-text { font-size: 13.5px; color: var(--text-2); }
+.chart-readout { font-size: 13px; color: var(--text-2); margin: 10px 4px 0; min-height: 1.45em; font-variant-numeric: tabular-nums; }
+.sleep-hit { cursor: pointer; }
+.dur { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 13px; }
+.dur input { padding: 12px 6px; text-align: center; min-width: 0; }
+input[type="time"] { min-height: 48px; }
+.list-row .ico.chev { width: 16px; height: 16px; }
+.evidence li { margin: 0 0 8px 18px; }
+.evidence .src { color: var(--text-3); }

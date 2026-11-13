@@ -102,3 +102,72 @@ test('copia: los días se filtran por fecha válida y sin repetir', () => {
     eq(h[1].sleep.hours, 8);
     eq(cleanHistory('nada'), []);
 });
+
+// ---------- Sueño ----------
+test('sueño: el tiempo entre dormirse y despertarse cruza la medianoche', () => {
+    eq(sleepSpanMin('23:30', '07:15'), 465);
+    eq(sleepSpanMin('00:10', '08:00'), 470);
+    eq(sleepSpanMin('', '08:00'), 0);
+    eq(sleepSpanMin('25:00', '08:00'), 0);
+});
+
+test('sueño: se limpia el registro y una noche vacía no se guarda', () => {
+    eq(sanitizeSleep(null), null);
+    eq(sanitizeSleep({ bed: '', wake: '', min: 0 }), null);
+    const s = sanitizeSleep({ bed: '23:30', wake: '07:15', quality: '82', nap: 20, hr: 300, deep: -5 });
+    eq([s.min, s.quality, s.nap, s.hr, s.deep], [465, 82, 20, 0, 0]);
+    eq(sanitizeSleep({ min: 450, quality: '' }).quality, null);
+    eq(sanitizeSleep({ quality: 0 }).quality, 0);
+    eq(fmtDuration(465), '7 h 45');
+    eq(fmtDuration(480), '8 h 00');
+});
+
+test('sueño: medias, deuda y regularidad de la semana', () => {
+    const today = '2026-03-10';
+    const hist = [0, 1, 2, 3, 4, 5, 6].map(i => ({
+        date: addDays(today, -i),
+        sleep: { bed: '23:30', wake: '07:00', min: 450, quality: 80, nap: i === 0 ? 30 : 0 }
+    }));
+    const sum = sleepSummary(hist, today, 510);
+    eq(sum.week.nights, 7);
+    eq(sum.week.avgMin, 450);
+    eq(sum.week.debtMin, 7 * 60 - 30);
+    eq(sum.week.avgQuality, 80);
+    eq(sum.regularity, 0);
+    eq(sum.last.total, 480);
+    eq(sum.prevWeek.nights, 0);
+    eq(sleepSummary([], today, 510).last, null);
+});
+
+test('sueño: la deuda nunca es negativa y las noches largas compensan', () => {
+    const today = '2026-03-10';
+    const hist = [{ date: today, sleep: { min: 600 } }, { date: addDays(today, -1), sleep: { min: 480 } }];
+    eq(sleepSummary(hist, today, 510).week.debtMin, 0);
+});
+
+test('sueño: avisos de noche corta, pulso alto y competición', () => {
+    const today = '2026-03-10';
+    const hist = [1, 2, 3, 4, 5, 6].map(i => ({ date: addDays(today, -i), sleep: { min: 500, quality: 85, hr: 48 } }));
+    hist.push({ date: today, sleep: { min: 330, quality: 60, hr: 57 } });
+    const titles = sleepAdvice(sleepSummary(hist, today, 510), { weight: 78, dayType: 'Competición' }).map(a => a.title);
+    ok(titles.some(t => t.startsWith('Noche corta')), 'noche corta');
+    ok(titles.some(t => t.startsWith('Pulso en reposo alto')), 'pulso');
+    ok(titles.some(t => t.startsWith('Nota baja')), 'nota baja');
+    ok(titles.includes('Antes de competir'), 'competición');
+    ok(!titles.includes('Vas bien de sueño'), 'no felicita con avisos');
+    const good = sleepAdvice(sleepSummary(hist.slice(0, 6), addDays(today, -1), 510), {}).map(a => a.title);
+    eq(good, ['Vas bien de sueño']);
+});
+
+test('sueño: patrón de comer más tras dormir poco', () => {
+    const today = '2026-03-30';
+    const hist = [];
+    for (let i = 1; i <= 12; i++) {
+        const short = i % 2 === 0;
+        hist.push({ date: addDays(today, -i), kcalTarget: 3500, kcalReal: short ? 3800 : 3450, sleep: { min: short ? 380 : 520, wake: '07:30' } });
+    }
+    const p = sleepPatterns(hist, today, 510);
+    eq(p.length, 1);
+    ok(p[0].title.startsWith('+350 kcal'), p[0].title);
+    eq(sleepPatterns(hist.slice(0, 5), today, 510), []);
+});

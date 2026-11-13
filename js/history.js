@@ -252,7 +252,7 @@ function renderHistoryTable() {
         const title = ['Hoy', 'Ayer', 'Mañana'].includes(rel)
             ? `${rel} · ${dt.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`
             : short.charAt(0).toUpperCase() + short.slice(1);
-        const sub = [sessionsSummary(h), h.weighed !== false && num(h.weight) >= 30 ? `${num(h.weight).toFixed(1)} kg` : '']
+        const sub = [sessionsSummary(h), h.weighed !== false && num(h.weight) >= 30 ? `${num(h.weight).toFixed(1)} kg` : '', sleepLabel(h.sleep)]
             .filter(Boolean).join(' · ');
 
         const row = document.createElement('div');
@@ -299,10 +299,12 @@ function exportHistoryToCSV() {
         'Carbs (g)', 'Carbs objetivo (g)', 'Carbs (g/kg)',
         'Proteína (g)', 'Proteína objetivo (g)', 'Proteína (g/kg)',
         'Grasas (g)', 'Grasas objetivo (g)', 'Grasas (g/kg)',
+        'Sueño (h)', 'Nota sueño', 'Siesta (min)', 'Me dormí', 'Me desperté', 'Pulso en reposo',
         'Comidas', 'Notas'];
     const rows = historyLogs.map(h => {
         const w = num(h.weight) || 1;
         const pct = num(h.kcalTarget) > 0 ? Math.round(num(h.kcalReal) / num(h.kcalTarget) * 100) : 0;
+        const sl = sanitizeSleep(h.sleep) || {};
         return [
             h.date, dec(h.weight), h.weighed === false ? 'no' : 'sí', txt(h.dayType),
             num(h.swimMin), num(h.swimMeters), num(h.gymMin), num(h.otherMin), num(h.trainingKcal),
@@ -310,6 +312,7 @@ function exportHistoryToCSV() {
             num(h.cReal), num(h.cTarget), dec(num(h.cReal) / w),
             num(h.pReal), num(h.pTarget), dec(num(h.pReal) / w),
             num(h.fReal), num(h.fTarget), dec(num(h.fReal) / w),
+            sl.min ? dec(sl.min / 60) : '', sl.quality ?? '', sl.nap || '', sl.bed || '', sl.wake || '', sl.hr || '',
             txt(h.mealsTextSummary), txt(h.notes)
         ].join(';');
     });

@@ -328,3 +328,219 @@ function cleanHistory(list) {
         return true;
     });
 }
+
+// ==========================================================
+// SUEÑO (cada noche se apunta en el día en que te levantas)
+// ==========================================================
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function timeToMin(t) {
+    return TIME_RE.test(String(t)) ? Number(t.slice(0, 2)) * 60 + Number(t.slice(3)) : null;
+}
+
+// Minutos entre dormirse y despertarse (cruza la medianoche)
+function sleepSpanMin(bed, wake) {
+    const b = timeToMin(bed), w = timeToMin(wake);
+    return b === null || w === null ? 0 : (w - b + 1440) % 1440;
+}
+
+// min: minutos dormidos de noche · quality: nota 0–100 · nap: siesta · deep/rem: fases · hr: pulso en reposo
+function sanitizeSleep(s) {
+    if (!s || typeof s !== 'object') return null;
+    const int = (v, lo, hi) => clamp(Math.round(num(v)), lo, hi);
+    const out = {
+        bed: TIME_RE.test(String(s.bed)) ? String(s.bed) : '',
+        wake: TIME_RE.test(String(s.wake)) ? String(s.wake) : '',
+        min: int(s.min, 0, 960),
+        quality: s.quality === null || s.quality === undefined || s.quality === '' ? null : int(s.quality, 0, 100),
+        nap: int(s.nap, 0, 300),
+        deep: int(s.deep, 0, 600),
+        rem: int(s.rem, 0, 600),
+        hr: num(s.hr) >= 25 && num(s.hr) <= 130 ? Math.round(num(s.hr)) : 0
+    };
+    if (!out.min) out.min = Math.min(960, sleepSpanMin(out.bed, out.wake));
+    return out.min || out.nap || out.quality !== null || out.hr ? out : null;
+}
+
+function fmtDuration(min) {
+    const m = Math.max(0, Math.round(num(min)));
+    return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`;
+}
+
+function sleepLabel(sleep) {
+    const s = sanitizeSleep(sleep);
+    return s && s.min ? `sueño ${fmtDuration(s.min)}` : '';
+}
+
+// Los deportistas necesitan dormir más que la media: 8 h 30 de partida (9 h en menores), ajustable
+function defaultSleepGoal(age) {
+    return num(age, 20) < 18 ? 540 : 510;
+}
+
+// Noches apuntadas entre dos fechas, de la más antigua a la más reciente. total = noche + siesta
+function sleepNights(history, from, to) {
+    return history
+        .filter(h => h.date >= from && h.date <= to)
+        .map(h => {
+            const s = sanitizeSleep(h.sleep);
+            return s ? { ...s, date: h.date, total: s.min + s.nap, rec: h } : null;
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function sleepSummary(history, today, goalMin) {
+    const mean = a => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+    const sd = a => {
+        const m = mean(a);
+        return Math.sqrt(mean(a.map(v => (v - m) ** 2)));
+    };
+    const block = (from, to) => {
+        const nights = sleepNights(history, from, to);
+        const timed = nights.filter(n => n.min > 0);
+        return {
+            nights: timed.length,
+            avgMin: mean(timed.map(n => n.min)),
+            avgTotal: mean(timed.map(n => n.total)),
+            avgQuality: mean(nights.filter(n => n.quality !== null).map(n => n.quality)),
+            // Lo que falta para tu objetivo, sumando las noches apuntadas (una noche larga compensa una corta)
+            debtMin: Math.max(0, timed.reduce((a, n) => a + goalMin - n.total, 0))
+        };
+    };
+
+    // Regularidad: cuánto varían tus horas de dormirte y despertarte en 14 días
+    const timed = sleepNights(history, addDays(today, -13), today).filter(n => n.bed && n.wake);
+    let regularity = null;
+    if (timed.length >= 4) {
+        const beds = timed.map(n => (timeToMin(n.bed) + 720) % 1440); // desde mediodía: 23:30 y 00:30 quedan juntas
+        const wakes = timed.map(n => timeToMin(n.wake));
+        regularity = Math.round((sd(beds) + sd(wakes)) / 2);
+    }
+
+    const hrs = sleepNights(history, addDays(today, -28), addDays(today, -1)).filter(n => n.hr).map(n => n.hr);
+    return {
+        goalMin,
+        last: sleepNights(history, today, today)[0] || null,
+        week: block(addDays(today, -6), today),
+        prevWeek: block(addDays(today, -13), addDays(today, -7)),
+        month: block(addDays(today, -27), today),
+        regularity,
+        hrBase: hrs.length >= 5 ? mean(hrs) : null
+    };
+}
+
+// Avisos del día. El sueño NO cambia las calorías: dormir poco sube el apetito, no el gasto.
+// Fuentes en la pestaña Sueño → "Qué dice la evidencia".
+function sleepAdvice(sum, ctx = {}) {
+    const out = [];
+    const goal = sum.goalMin, last = sum.last, wk = sum.week;
+
+    if (last && last.min > 0 && last.total < goal - 90) {
+        out.push({
+            tone: 'warn',
+            title: `Noche corta: ${fmtDuration(last.total)}`,
+            text: 'Dormir poco sube el apetito (sobre todo de dulce y grasa), pero no lo que gastas: mantén tu objetivo de calorías y reparte bien la proteína y los hidratos. Si puedes, una siesta de 20–30 min después de comer recupera parte del rendimiento.'
+        });
+    }
+    if (wk.nights >= 3 && wk.debtMin >= 180) {
+        out.push({
+            tone: 'warn',
+            title: `Deuda de sueño: ${fmtDuration(wk.debtMin)} en ${wk.nights} noches`,
+            text: `Esta semana duermes ${fmtDuration(wk.avgTotal)} de media y tu objetivo es ${fmtDuration(goal)}. Acostarte 30–60 min antes durante unos días mejora la velocidad, el tiempo de reacción y el ánimo; dormir menos de 8 h de forma habitual se asocia a más lesiones y resfriados en deportistas.`
+        });
+    }
+    if (last && last.hr && sum.hrBase && last.hr >= sum.hrBase + 6) {
+        out.push({
+            tone: 'warn',
+            title: `Pulso en reposo alto: ${last.hr} ppm (+${Math.round(last.hr - sum.hrBase)})`,
+            text: 'Varios latidos por encima de tu media suele indicar fatiga acumulada, poca recuperación o que estás incubando algo. Si se repite 2 o 3 días, coméntalo con tu entrenador y valora bajar la carga.'
+        });
+    }
+    if (last && last.quality !== null && sum.month.avgQuality !== null && sum.month.nights >= 7 && last.quality <= sum.month.avgQuality - 12) {
+        out.push({
+            tone: 'info',
+            title: `Nota baja: ${last.quality} (tu media es ${Math.round(sum.month.avgQuality)})`,
+            text: 'Lo que más suele estropear la calidad: cafeína por la tarde (déjala unas 8–9 h antes de dormir), entreno muy intenso en la última hora, alcohol, pantallas con luz fuerte antes de acostarte y la habitación caliente.'
+        });
+    }
+    if (sum.regularity !== null && sum.regularity > 60) {
+        out.push({
+            tone: 'info',
+            title: `Horarios irregulares: ±${sum.regularity} min`,
+            text: 'Dormirte y despertarte a horas parecidas, también el fin de semana, mejora la calidad del sueño aunque duermas las mismas horas.'
+        });
+    }
+    if (ctx.dayType === 'Competición' || ctx.dayType === 'Tapering') {
+        out.push({
+            tone: 'info',
+            title: 'Antes de competir',
+            text: 'Es normal dormir peor la noche antes de competir y afecta poco a las pruebas cortas. Lo que cuenta es el sueño de la semana previa: alárgalo estos días.'
+        });
+    }
+    if (!out.some(a => a.tone === 'warn') && wk.nights >= 4 && wk.avgTotal >= goal - 20) {
+        out.push({ tone: 'ok', title: 'Vas bien de sueño', text: `Media de ${fmtDuration(wk.avgTotal)} esta semana. Mantén los horarios.` });
+    }
+    if (num(ctx.weight) > 0) {
+        out.push({
+            tone: 'info',
+            title: 'Antes de dormir',
+            text: 'Unos 30–40 g de proteína lenta (caseína, queso fresco batido, yogur griego) antes de acostarte mejoran la recuperación muscular durante la noche, sobre todo los días de gimnasio.'
+        });
+    }
+    return out;
+}
+
+// Relaciones en TUS datos (últimos 90 días). Describen lo que ha pasado, no demuestran la causa.
+function sleepPatterns(history, today, goalMin) {
+    const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+    const byDate = Object.fromEntries(history.map(h => [h.date, h]));
+    const nights = sleepNights(history, addDays(today, -90), addDays(today, -1)).filter(n => n.min > 0);
+    const out = [];
+
+    // Lo que comes el día después de dormir poco (frente a tu objetivo, para no mezclar días de más entreno)
+    const fed = nights.filter(n => num(n.rec.kcalTarget) > 0 && num(n.rec.kcalReal) >= 0.5 * num(n.rec.kcalTarget));
+    const over = n => num(n.rec.kcalReal) - num(n.rec.kcalTarget);
+    const short = fed.filter(n => n.total < goalMin - 60), rest = fed.filter(n => n.total >= goalMin - 60);
+    if (short.length >= 4 && rest.length >= 4) {
+        const d = Math.round(mean(short.map(over)) - mean(rest.map(over)));
+        if (Math.abs(d) >= 100) {
+            out.push({
+                title: `${d > 0 ? '+' : '−'}${Math.abs(d)} kcal tras dormir poco`,
+                text: `Los días después de dormir menos de ${fmtDuration(goalMin - 60)} comes de media ${Math.abs(d)} kcal ${d > 0 ? 'más' : 'menos'} respecto a tu objetivo que el resto de días (${short.length} noches cortas).`
+            });
+        }
+    }
+
+    // Madrugones
+    const withWake = nights.filter(n => n.wake);
+    const early = withWake.filter(n => timeToMin(n.wake) < 390), late = withWake.filter(n => timeToMin(n.wake) >= 390);
+    if (early.length >= 3 && late.length >= 3) {
+        const a = mean(early.map(n => n.min)), b = mean(late.map(n => n.min));
+        if (b - a >= 30) {
+            out.push({
+                title: `${fmtDuration(b - a)} menos cuando madrugas`,
+                text: `Las noches que te levantas antes de las 6:30 duermes ${fmtDuration(a)} de media, frente a ${fmtDuration(b)} el resto (${early.length} madrugones). Esos días, acuéstate antes o recupera con siesta.`
+            });
+        }
+    }
+
+    // Cómo duermes tras los días de más carga
+    const loaded = nights
+        .map(n => ({ n, load: num((byDate[addDays(n.date, -1)] || {}).trainingKcal) }))
+        .filter(x => x.load > 0 && x.n.quality !== null);
+    if (loaded.length >= 9) {
+        const sorted = loaded.map(x => x.load).sort((a, b) => a - b);
+        const cut = sorted[Math.floor(sorted.length * 2 / 3)];
+        const hard = loaded.filter(x => x.load >= cut), easy = loaded.filter(x => x.load < cut);
+        if (hard.length >= 3 && easy.length >= 3) {
+            const d = Math.round(mean(hard.map(x => x.n.quality)) - mean(easy.map(x => x.n.quality)));
+            if (Math.abs(d) >= 5) {
+                out.push({
+                    title: `Nota ${d > 0 ? '+' : '−'}${Math.abs(d)} tras los días duros`,
+                    text: `Después de tus días de más carga tu nota de sueño es ${Math.abs(d)} puntos ${d > 0 ? 'mejor' : 'peor'} que tras los días normales (${hard.length} noches).`
+                });
+            }
+        }
+    }
+    return out;
+}

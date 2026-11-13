@@ -10,4 +10,12 @@ Funciona sin conexión. Los datos (comidas, diario, clave de Gemini) se guardan 
 
 ## Actualizar la app
 1. Cambia los archivos y súbelos.
-2. Sube el número de `CACHE` en `sw.js` (por ejemplo `swimfuel-v6`) para que el móvil descargue la versión nueva. Se verá la segunda vez que abras la app.
+2. Sube el número de `CACHE` en `sw.js` (por ejemplo `swimfuel-v7`). El móvil descarga la versión nueva entera y la app avisa con "Hay una versión nueva: Recargar".
+3. Si añades un archivo nuevo a la app, añádelo también a la lista `ASSETS` de `sw.js`.
+
+## Cómo está organizada
+- `index.html`: la pantalla. `css/app.css`: el diseño.
+- `js/engine.js`: las cuentas (gasto, series, sueño), sin pantalla. `js/core.js`: datos y navegación. `js/today.js`, `js/foods.js`, `js/sleep.js`, `js/history.js`: cada pestaña. `js/main.js`: arranque.
+- `tests/tests.html`: pruebas de las cuentas. `tests/seed.html`: datos inventados para probar (solo en `localhost`).
+
+Para probarla en el ordenador: `python -m http.server 8765` y abre `http://localhost:8765`.

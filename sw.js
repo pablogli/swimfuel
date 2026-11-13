@@ -16,6 +16,7 @@ const ASSETS = [
     './js/today.js',
     './js/foods.js',
     './js/history.js',
+    './js/sleep.js',
     './js/main.js',
     './icon-192.png',
     './icon-512.png',

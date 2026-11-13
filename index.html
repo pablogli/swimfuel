@@ -84,6 +84,23 @@
         </section>
 
         <section class="section">
+            <div class="section-head"><h2>Al despertar</h2></div>
+            <div class="list">
+                <label class="list-row">
+                    <span>Peso</span>
+                    <span class="inline-field">
+                        <input type="number" id="weight" class="inline-input" step="0.1" min="30" max="200" inputmode="decimal" placeholder="80.0" title="Pésate por la mañana, en ayunas. Si lo dejas vacío se usa tu último peso.">
+                        <span>kg</span>
+                    </span>
+                </label>
+                <button class="list-row" id="sleepRow" type="button">
+                    <span>Sueño</span>
+                    <span class="inline-field"><span id="sleepRowValue">Apuntar</span><span data-icon="chevronRight" style="display:inline-flex;"></span></span>
+                </button>
+            </div>
+        </section>
+
+        <section class="section">
             <div class="section-head">
                 <h2>Entrenamiento</h2>
                 <button class="text-btn" id="btnAddSession" data-icon="plus">Añadir</button>
@@ -99,13 +116,6 @@
                         <option value="Competición">Competición</option>
                         <option value="Descanso">Descanso</option>
                     </select>
-                </label>
-                <label class="list-row">
-                    <span>Peso</span>
-                    <span class="inline-field">
-                        <input type="number" id="weight" class="inline-input" step="0.1" min="30" max="200" inputmode="decimal" placeholder="80.0" title="Pésate por la mañana, en ayunas. Si lo dejas vacío se usa tu último peso.">
-                        <span>kg</span>
-                    </span>
                 </label>
             </div>
             <div class="list sessions" id="sessionsContainer"></div>
@@ -160,6 +170,58 @@
         </p>
     </section>
 
+    <!-- ===================== SUEÑO ===================== -->
+    <section class="tab-panel" id="tab_sleep">
+        <header class="topbar">
+            <h1>Sueño</h1>
+            <button class="pill-btn" id="btnSleepGoal" aria-label="Cambiar el objetivo de sueño"></button>
+        </header>
+
+        <section class="section">
+            <div class="card" id="sleepLastCard"></div>
+            <div class="stats-grid" id="sleepStats" style="margin-top:10px;"></div>
+            <div class="card chart-card" id="sleepChartCard" hidden>
+                <div class="chart-wrap" id="sleepChart"></div>
+                <div class="chart-readout" id="sleepReadout" aria-live="polite"></div>
+            </div>
+        </section>
+
+        <section class="section" id="sleepAdviceSection" hidden>
+            <div class="section-head"><h2>Para hoy</h2></div>
+            <div id="sleepAdvice"></div>
+        </section>
+
+        <section class="section" id="sleepPatternsSection" hidden>
+            <div class="section-head"><h2>Tus patrones</h2></div>
+            <div id="sleepPatterns"></div>
+            <p class="footnote">Sacado de tus últimos 90 días. Describe lo que ha pasado; no demuestra la causa.</p>
+        </section>
+
+        <details class="disclosure">
+            <summary>
+                <span class="s-icon" data-icon="moon"></span>
+                <span class="grow">
+                    <span class="s-title" style="display:block;">Qué dice la evidencia</span>
+                    <span class="s-sub" style="display:block;">Por qué el sueño no cambia tus calorías</span>
+                </span>
+                <span class="s-chev" data-icon="chevronDown"></span>
+            </summary>
+            <div class="disclosure-body small">
+                <ul class="evidence">
+                    <li><strong>Calorías:</strong> dormir poco hace comer más (unas 300–400 kcal al día de media) sin que el gasto cambie apenas. Por eso la app no te sube el objetivo tras una mala noche: te avisa de que tendrás más hambre. <span class="src">Al Khatib 2017</span></li>
+                    <li><strong>Cuánto:</strong> los adultos necesitan 7–9 h y los deportistas de élite suelen necesitar más de 8 h. Ajusta tu objetivo arriba a la derecha. <span class="src">Walsh 2021 (consenso)</span></li>
+                    <li><strong>Dormir más mejora el rendimiento:</strong> alargar el sueño varias semanas mejoró el sprint, el tiempo de reacción y el ánimo. <span class="src">Mah 2011</span></li>
+                    <li><strong>Madrugones:</strong> los nadadores de élite duermen unas 5 h y media antes de los entrenos de primera hora. <span class="src">Sargent 2014</span></li>
+                    <li><strong>Lesiones y resfriados:</strong> dormir menos de 8 h de media se asocia a más lesiones en deportistas jóvenes, y menos de 6–7 h a más resfriados. <span class="src">Milewski 2014 · Prather 2015</span></li>
+                    <li><strong>Siesta:</strong> 20–30 min (o un ciclo de 90) recuperan parte del rendimiento tras una noche corta. <span class="src">Lastella 2021</span></li>
+                    <li><strong>Cafeína:</strong> tomada 6 h antes de acostarte todavía acorta el sueño. <span class="src">Drake 2013</span></li>
+                    <li><strong>Proteína antes de dormir:</strong> 30–40 g de caseína aumentan la síntesis de proteína muscular durante la noche. <span class="src">Res 2012</span></li>
+                </ul>
+                <p class="disclaimer">Las fases (profundo, REM) y la nota de un reloj son estimaciones: sirven para ver tu tendencia, no como medida exacta. La app las guarda pero no basa ningún aviso en las fases.</p>
+            </div>
+        </details>
+    </section>
+
     <!-- ===================== DIARIO ===================== -->
     <section class="tab-panel" id="tab_history">
         <header class="topbar"><h1>Diario</h1></header>
@@ -201,6 +263,7 @@
 <nav class="tabbar" aria-label="Secciones">
     <button class="tab active" data-tab="today" data-icon="calendar"><span>Hoy</span></button>
     <button class="tab" data-tab="foods" data-icon="apple"><span>Alimentos</span></button>
+    <button class="tab" data-tab="sleep" data-icon="moon"><span>Sueño</span></button>
     <button class="tab" data-tab="history" data-icon="chart"><span>Diario</span></button>
 </nav>
 
@@ -392,6 +455,85 @@
     </div>
 </div>
 
+<!-- ===================== HOJA: SUEÑO ===================== -->
+<div class="modal-overlay" id="modalSleep">
+    <div class="modal-box">
+        <div class="grabber"></div>
+        <div class="modal-header">
+            <div>
+                <h3>Sueño</h3>
+                <div class="small muted" id="sleepNightLabel"></div>
+            </div>
+            <button class="icon-btn" onclick="closeModal('modalSleep')" aria-label="Cerrar" data-icon="close"></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="sleepBed">Me dormí</label>
+                    <input type="time" id="sleepBed">
+                </div>
+                <div class="form-group">
+                    <label for="sleepWake">Me desperté</label>
+                    <input type="time" id="sleepWake">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="sleepH">Tiempo dormido</label>
+                    <div class="dur">
+                        <input type="number" id="sleepH" min="0" max="16" inputmode="numeric" placeholder="0" aria-label="Horas dormidas"><span>h</span>
+                        <input type="number" id="sleepM" min="0" max="59" inputmode="numeric" placeholder="00" aria-label="Minutos dormidos"><span>min</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="sleepQuality">Nota (0–100)</label>
+                    <input type="number" id="sleepQuality" min="0" max="100" inputmode="numeric" placeholder="—">
+                </div>
+            </div>
+            <p class="footnote" id="sleepSpanHint" style="margin:-4px 2px 14px;"></p>
+            <div class="form-group">
+                <label for="sleepNap">Siesta (min)</label>
+                <input type="number" id="sleepNap" min="0" max="300" step="5" inputmode="numeric" placeholder="0">
+                <div class="chips" style="margin:8px 0 0;">
+                    <button type="button" class="chip" data-nap="20">20 min</button>
+                    <button type="button" class="chip" data-nap="30">30 min</button>
+                    <button type="button" class="chip" data-nap="60">1 h</button>
+                    <button type="button" class="chip" data-nap="90">1 h 30</button>
+                </div>
+            </div>
+            <details class="ai-box" id="sleepMore">
+                <summary><span style="flex:1;">Más datos del reloj</span><span class="s-chev" data-icon="chevronDown"></span></summary>
+                <div class="ai-inner">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="sleepDeepH">Sueño profundo</label>
+                            <div class="dur">
+                                <input type="number" id="sleepDeepH" min="0" max="10" inputmode="numeric" placeholder="0" aria-label="Horas de sueño profundo"><span>h</span>
+                                <input type="number" id="sleepDeepM" min="0" max="59" inputmode="numeric" placeholder="00" aria-label="Minutos de sueño profundo"><span>min</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="sleepRemH">REM</label>
+                            <div class="dur">
+                                <input type="number" id="sleepRemH" min="0" max="10" inputmode="numeric" placeholder="0" aria-label="Horas de sueño REM"><span>h</span>
+                                <input type="number" id="sleepRemM" min="0" max="59" inputmode="numeric" placeholder="00" aria-label="Minutos de sueño REM"><span>min</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="sleepHr">Pulso en reposo (ppm)</label>
+                        <input type="number" id="sleepHr" min="25" max="130" inputmode="numeric" placeholder="—">
+                    </div>
+                </div>
+            </details>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-danger" id="btnDeleteSleep" hidden>Borrar</button>
+            <button class="btn-primary" id="btnSaveSleep">Guardar</button>
+        </div>
+    </div>
+</div>
+
 <!-- ===================== HOJA: MENÚ DE ACCIONES ===================== -->
 <div class="modal-overlay" id="actionSheet">
     <div class="modal-box">
@@ -411,6 +553,7 @@
 <script src="js/today.js"></script>
 <script src="js/foods.js"></script>
 <script src="js/history.js"></script>
+<script src="js/sleep.js"></script>
 <script src="js/main.js"></script>
 
 </body>

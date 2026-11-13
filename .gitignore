@@ -1,3 +1,7 @@
 # Versiones antiguas: se quedan solo en el ordenador
 versiones-anteriores/
 .claude/
+
+# Copias de seguridad con datos personales: nunca al repositorio
+SwimFuel_Copia_*.json
+SwimFuel_Historico_*.csv
