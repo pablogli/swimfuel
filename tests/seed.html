@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SwimFuel · datos de prueba</title>
+    <style>body { font: 15px/1.5 system-ui, sans-serif; margin: 24px auto; max-width: 620px; padding: 0 16px; } button { font: inherit; padding: 10px 16px; margin: 6px 6px 6px 0; }</style>
+</head>
+<body>
+    <h1>Datos de prueba</h1>
+    <p>Rellena la app con datos inventados <strong>en el formato de la versión anterior</strong> para comprobar que una actualización no rompe nada. Solo funciona en <code>localhost</code>: en la app publicada no hace nada, para no tocar tus datos reales.</p>
+    <button id="seed">Cargar 45 días antiguos</button>
+    <button id="clear">Vaciar todo</button>
+    <p id="msg"></p>
+
+    <script>
+        'use strict';
+        const LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
+        const KEYS = {
+            db: 'swimfuel_custom_food_db_v2',
+            history: 'swimfuel_daily_history_v2',
+            profile: 'swimfuel_user_profile_v2',
+            slots: 'swimfuel_custom_meal_slots_v2'
+        };
+
+        function iso(d) {
+            const p = n => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+        }
+
+        // Números "aleatorios" repetibles: los mismos datos cada vez
+        function rng(seed) {
+            let s = seed;
+            return () => { s = (s * 1664525 + 1013904223) % 4294967296; return s / 4294967296; };
+        }
+
+        function seedLegacy(days = 45) {
+            if (!LOCAL) return 'Solo en localhost';
+            const rand = rng(7);
+            const foods = [
+                { id: 'f_oats', name: 'Copos de avena', kcal: 375, c: 60, p: 13, f: 7, defaultG: 80 },
+                { id: 'f_rice', name: 'Arroz blanco / basmati (en crudo)', kcal: 360, c: 79, p: 7, f: 0.8, defaultG: 100 },
+                { id: 'f_pasta', name: 'Pasta de trigo (en crudo)', kcal: 355, c: 72, p: 12.5, f: 1.5, defaultG: 110 },
+                { id: 'f_chicken', name: 'Pechuga de pollo (en crudo)', kcal: 115, c: 0, p: 23, f: 2, defaultG: 200 },
+                { id: 'f_eggs', name: 'Huevo entero (1 L ~ 60g)', kcal: 143, c: 0.7, p: 12.6, f: 9.5, defaultG: 120 },
+                { id: 'f_whey', name: 'Proteína Whey Isolate (polvo)', kcal: 375, c: 4, p: 82, f: 2, defaultG: 35 },
+                { id: 'f_banana', name: 'Plátano (sin piel)', kcal: 89, c: 22.8, p: 1.1, f: 0.3, defaultG: 120 },
+                { id: 'f_milk', name: 'Leche semidesnatada', kcal: 47, c: 4.8, p: 3.3, f: 1.6, defaultG: 250 },
+                { id: 'f_oil', name: 'Aceite de Oliva Virgen Extra (AOVE)', kcal: 884, c: 0, p: 0, f: 100, defaultG: 15 },
+                { id: 'cust_bread', name: 'Pan de barra', kcal: 265, c: 52, p: 9, f: 1.5, defaultG: 80 }
+            ];
+            const slots = [
+                { id: 'm1', title: '1. Desayuno / Pre-entreno', hint: 'Carga energética matinal' },
+                { id: 'm2', title: 'Post-entreno agua', hint: 'Reposición rápida tras la piscina' },
+                { id: 'm3', title: '3. Comida', hint: 'Recuperación de glucógeno y proteína' },
+                { id: 'm5', title: 'Cena', hint: 'Recuperación nocturna' }
+            ];
+            const item = (f, grams) => ({ uid: 'i_' + Math.floor(rand() * 1e9).toString(36), name: f.name, grams, kcal100: f.kcal, c100: f.c, p100: f.p, f100: f.f });
+            const F = Object.fromEntries(foods.map(f => [f.id, f]));
+            const history = [];
+            const today = new Date();
+            let weight = 79.2;
+
+            for (let n = days; n >= 1; n--) {
+                const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - n);
+                const rest = d.getDay() === 0;
+                const hard = d.getDay() === 2 || d.getDay() === 4;
+                weight += (rand() - 0.52) * 0.25;
+                const scale = (rest ? 0.8 : 1) * (0.9 + rand() * 0.25);
+                const meals = {
+                    m1: [item(F.f_oats, Math.round(90 * scale)), item(F.f_milk, 300), item(F.f_banana, 120)],
+                    m2: [item(F.f_whey, 35), item(F.cust_bread, Math.round(100 * scale))],
+                    m3: [item(F.f_rice, Math.round(160 * scale)), item(F.f_chicken, 220), item(F.f_oil, 20)],
+                    m5: [item(F.f_pasta, Math.round(150 * scale)), item(F.f_eggs, 180), item(F.f_oil, 15)]
+                };
+                const tot = { k: 0, c: 0, p: 0, f: 0 };
+                Object.values(meals).flat().forEach(i => {
+                    const r = i.grams / 100;
+                    tot.k += i.kcal100 * r; tot.c += i.c100 * r; tot.p += i.p100 * r; tot.f += i.f100 * r;
+                });
+                const rec = {
+                    date: iso(d),
+                    weight: Math.round(weight * 10) / 10,
+                    weighed: n % 2 === 0,
+                    dayType: rest ? 'Descanso' : hard ? 'Doble Sesión Agua' : 'Agua + Gimnasio',
+                    goal: 'maint',
+                    kcalReal: Math.round(tot.k), kcalTarget: rest ? 2900 : 3500,
+                    cReal: Math.round(tot.c), cTarget: rest ? 320 : 510,
+                    pReal: Math.round(tot.p), pTarget: 166,
+                    fReal: Math.round(tot.f), fTarget: 90,
+                    notes: n % 9 === 0 ? 'Cansado en las series largas' : '',
+                    mealsTextSummary: 'Desayuno: avena, leche, plátano',
+                    mealsSnapshot: meals,
+                    mealSlotsSnapshot: slots
+                };
+                if (n > 30) {
+                    // Formato más antiguo: solo minutos de agua y de gimnasio
+                    rec.swimMin = rest ? 0 : hard ? 210 : 105;
+                    rec.gymMin = rest || hard ? 0 : 60;
+                } else {
+                    rec.sessions = rest ? [] : [
+                        { id: 's_a' + n, type: 'swim', minutes: 105, rpe: hard ? 8 : 6, meters: hard ? 6200 : 5000, stroke: 'crawl', sets: '400 + 8x100 c/1:30 + 3x(4x50 + 100) + 200 suave', metersFromSets: false, gymType: 'strength', label: '' },
+                        ...(hard ? [{ id: 's_b' + n, type: 'swim', minutes: 90, rpe: 6, meters: 4500, stroke: 'im', sets: '', metersFromSets: false, gymType: 'strength', label: '' }]
+                            : [{ id: 's_g' + n, type: 'gym', minutes: 60, rpe: 6, meters: 0, stroke: 'crawl', sets: '', metersFromSets: false, gymType: 'strength', label: '' }])
+                    ];
+                    rec.swimMin = rec.sessions.filter(s => s.type === 'swim').reduce((a, s) => a + s.minutes, 0);
+                    rec.swimMeters = rec.sessions.reduce((a, s) => a + s.meters, 0);
+                    rec.gymMin = rec.sessions.filter(s => s.type === 'gym').reduce((a, s) => a + s.minutes, 0);
+                    rec.otherMin = 0;
+                    rec.trainingKcal = rest ? 0 : hard ? 1900 : 1250;
+                    rec.maintRaw = (rest ? 2550 : 2550 + rec.trainingKcal);
+                    rec.calibration = 1;
+                }
+                history.push(rec);
+            }
+            history.reverse();
+
+            localStorage.clear();
+            localStorage.setItem(KEYS.db, JSON.stringify(foods));
+            localStorage.setItem(KEYS.history, JSON.stringify(history));
+            localStorage.setItem(KEYS.slots, JSON.stringify(slots));
+            localStorage.setItem(KEYS.profile, JSON.stringify({
+                sex: 'M', age: '21', height: '188', specialty: 'mid', goal: 'maint', activity: '1.4',
+                dayType: 'Agua + Gimnasio', weight: '78.9', calibration: 1.04,
+                sessions: [
+                    { id: 's_t1', type: 'swim', minutes: 105, rpe: 6, meters: 0, stroke: 'crawl', sets: '', metersFromSets: false, gymType: 'strength', label: '' },
+                    { id: 's_t2', type: 'gym', minutes: 60, rpe: 6, meters: 0, stroke: 'crawl', sets: '', metersFromSets: false, gymType: 'strength', label: '' }
+                ]
+            }));
+            return `${history.length} días antiguos cargados`;
+        }
+
+        const say = t => { document.getElementById('msg').textContent = t; };
+        document.getElementById('seed').addEventListener('click', () => say(seedLegacy()));
+        document.getElementById('clear').addEventListener('click', () => {
+            if (!LOCAL) return say('Solo en localhost');
+            localStorage.clear();
+            say('Datos borrados');
+        });
+        if (!LOCAL) say('Esta página solo funciona en localhost.');
+    </script>
+</body>
+</html>

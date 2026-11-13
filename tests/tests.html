@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SwimFuel · tests</title>
+    <style>
+        body { font: 14px/1.5 system-ui, sans-serif; margin: 24px auto; max-width: 760px; padding: 0 16px; }
+        h1 { font-size: 20px; }
+        .ok { color: #1d9a61; }
+        .fail { color: #d6403b; font-weight: 600; }
+        pre { white-space: pre-wrap; margin: 2px 0 10px 18px; color: #d6403b; }
+        #summary { font-size: 16px; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <h1>Tests del motor de cálculo</h1>
+    <p>Comprueban las cuentas de la app (series, gasto, sueño, copias) sin tocar tus datos. Ábrelo con un servidor local: <code>python -m http.server</code> y <code>/tests/tests.html</code>.</p>
+    <p id="summary">Ejecutando…</p>
+    <div id="out"></div>
+
+    <script>
+        // Mini banco de pruebas: test('nombre', () => { eq(a, b); ok(cond); near(a, b, tol); })
+        const results = [];
+        function test(name, fn) {
+            try { fn(); results.push({ name, ok: true }); }
+            catch (e) { results.push({ name, ok: false, error: e.message }); }
+        }
+        function ok(cond, msg = 'se esperaba verdadero') { if (!cond) throw new Error(msg); }
+        function eq(actual, expected, msg = '') {
+            const a = JSON.stringify(actual), b = JSON.stringify(expected);
+            if (a !== b) throw new Error(`${msg ? msg + ': ' : ''}esperado ${b}, obtenido ${a}`);
+        }
+        function near(actual, expected, tol, msg = '') {
+            if (!(Math.abs(actual - expected) <= tol)) throw new Error(`${msg ? msg + ': ' : ''}esperado ${expected} ±${tol}, obtenido ${actual}`);
+        }
+    </script>
+    <script src="../js/engine.js"></script>
+    <script src="engine.test.js"></script>
+    <script>
+        const failed = results.filter(r => !r.ok);
+        document.getElementById('summary').textContent = failed.length
+            ? `${failed.length} de ${results.length} tests fallan`
+            : `${results.length} tests correctos`;
+        document.getElementById('summary').className = failed.length ? 'fail' : 'ok';
+        document.getElementById('out').innerHTML = results.map(r =>
+            `<div class="${r.ok ? 'ok' : 'fail'}">${r.ok ? '✓' : '✗'} ${escapeHtml(r.name)}</div>${r.ok ? '' : `<pre>${escapeHtml(r.error)}</pre>`}`).join('');
+        window.testSummary = { total: results.length, failed: failed.map(r => `${r.name}: ${r.error}`) };
+    </script>
+</body>
+</html>
