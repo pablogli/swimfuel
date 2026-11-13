@@ -659,3 +659,6 @@ button.meal-add:active { background: var(--surface-2); }
 .qty-preview { background: var(--surface-2); border-radius: 14px; padding: 12px 14px; font-variant-numeric: tabular-nums; }
 .qty-preview strong { font-weight: 700; }
 #addResults .list-row, #dishSearchResults .list-row { min-height: 56px; }
+
+.status-none { background: var(--surface-2); color: var(--text-2); }
+.modal-box:focus { outline: none; }

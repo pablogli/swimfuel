@@ -190,6 +190,12 @@ function buildSessionCard(s) {
             <div class="s-foot"><span class="s-how"></span><button class="text-btn" data-act="remove" style="color:var(--danger);">Quitar</button></div>
         </div>`;
 
+    el.querySelectorAll('.s-grid > div').forEach(cell => {
+        const label = cell.querySelector('label');
+        const field = cell.querySelector('input, select, textarea');
+        if (label && field) field.setAttribute('aria-label', label.textContent);
+    });
+
     const row = el.querySelector('.session-row');
     row.addEventListener('click', () => {
         const open = !el.classList.contains('open');

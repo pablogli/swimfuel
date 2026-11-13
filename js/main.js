@@ -27,6 +27,7 @@ function init() {
     });
     $('logNotes').addEventListener('input', scheduleSave);
     $('btnAddSession').addEventListener('click', chooseSessionType);
+    initModals();
     initSleepUI();
     initAddFoodUI();
     $('btnDeleteFood').addEventListener('click', () => { if (editingFoodId) deleteFood(editingFoodId); });

@@ -142,6 +142,7 @@ function renderSleepTab() {
     renderSleepLast(sum);
     renderSleepStats(sum);
     renderSleepChart(today, goal);
+    renderRecovery(sum, today);
 
     const todayRec = historyLogs.find(h => h.date === today);
     const prof = readJSON(STORAGE_KEY_PROFILE, {}) || {};
@@ -322,4 +323,29 @@ function initSleepUI() {
         paintSleepSpan();
     }));
     document.querySelectorAll('[data-nap]').forEach(b => b.addEventListener('click', () => { $('sleepNap').value = b.dataset.nap; }));
+}
+
+// Recuperación: sueño, carga y energía disponible, cada una con su dato (el gasto de los entrenos se
+// recalcula con el modelo actual para que las semanas sean comparables)
+function renderRecovery(sum, today) {
+    const days = historyLogs.filter(h => h.date >= addDays(today, -35) && h.date < today).map(h => {
+        const list = Array.isArray(h.sessions) ? sanitizeSessions(h.sessions) : legacySessions(h.dayType, h.swimMin, h.gymMin);
+        const w = num(h.weight) >= 30 ? num(h.weight) : currentWeight();
+        return { date: h.date, kcalReal: h.kcalReal, kcalTarget: h.kcalTarget, training: computeEnergy(w, list).training };
+    });
+    const prof = readJSON(STORAGE_KEY_PROFILE, {}) || {};
+    const signals = recoverySignals({
+        sleep: sum, days, today,
+        weight: lastWeighedBefore(addDays(today, 1)) || num(prof.weight),
+        bodyFat: $('bodyFat').value, sex: $('sex').value
+    });
+    const word = { ok: 'bien', info: 'atento', warn: 'aviso', none: '' };
+    $('recoveryList').innerHTML = signals.map(s => `
+        <div class="advice">
+            <div class="row" style="justify-content:space-between; flex-wrap:nowrap;">
+                <span class="advice-title" style="margin:0;">${escapeHtml(s.title)}</span>
+                <span class="status-pill status-${s.tone === 'warn' ? 'warn' : s.tone}">${escapeHtml(s.value)}${word[s.tone] ? ` · ${word[s.tone]}` : ''}</span>
+            </div>
+            <div class="advice-text" style="margin-top:6px;">${escapeHtml(s.text)}</div>
+        </div>`).join('');
 }

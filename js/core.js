@@ -471,9 +471,47 @@ function switchTab(tab) {
     if (tab === 'sleep') renderSleepTab();
 }
 
+const modalReturnFocus = {};
+
 function openModal(id) {
-    $(id).classList.add('active');
+    const m = $(id);
+    modalReturnFocus[id] = document.activeElement;
+    m.classList.add('active');
     document.body.classList.add('modal-open');
+    // El foco entra en la hoja (los lectores de pantalla la anuncian) y vuelve a donde estaba al cerrar
+    m.querySelector('.modal-box').focus({ preventScroll: true });
+}
+
+// Las hojas se anuncian como diálogos con su título, y el tabulador no se sale de la que está abierta
+function initModals() {
+    document.querySelectorAll('.modal-overlay').forEach(m => {
+        const box = m.querySelector('.modal-box');
+        const title = m.querySelector('h3');
+        if (title && !title.id) title.id = `${m.id}_title`;
+        box.setAttribute('role', 'dialog');
+        box.setAttribute('aria-modal', 'true');
+        box.setAttribute('tabindex', '-1');
+        if (title) box.setAttribute('aria-labelledby', title.id);
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'Tab') return;
+        const open = [...document.querySelectorAll('.modal-overlay.active')].pop();
+        if (!open) return;
+        const items = [...open.querySelectorAll('button, [href], input, select, textarea, summary')]
+            .filter(el => !el.disabled && el.type !== 'file' && el.offsetParent !== null);
+        if (!items.length) return;
+        const first = items[0], last = items[items.length - 1];
+        if (!open.contains(document.activeElement) || document.activeElement === open.querySelector('.modal-box')) {
+            e.preventDefault();
+            (e.shiftKey ? last : first).focus();
+        } else if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    });
 }
 
 function closeModal(id) {
@@ -483,4 +521,7 @@ function closeModal(id) {
         editingFoodId = null;
     }
     if (!document.querySelector('.modal-overlay.active')) document.body.classList.remove('modal-open');
+    const back = modalReturnFocus[id];
+    delete modalReturnFocus[id];
+    if (back && document.contains(back) && typeof back.focus === 'function') back.focus({ preventScroll: true });
 }

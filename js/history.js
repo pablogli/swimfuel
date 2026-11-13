@@ -395,8 +395,8 @@ function exportHistoryToCSV() {
     showToast('Histórico exportado (ábrelo con Excel o Google Sheets)');
 }
 
-function exportFullBackup() {
-    const backup = {
+function buildBackup() {
+    return {
         app: 'SwimFuel',
         version: SCHEMA_VERSION,
         exportedAt: new Date().toISOString(),
@@ -406,10 +406,34 @@ function exportFullBackup() {
         mealSlots: templateSlots,
         dishes
     };
-    downloadBlob(JSON.stringify(backup, null, 2), 'application/json', `SwimFuel_Copia_${todayLocalISO()}.json`);
+}
+
+function markBackupDone(msg) {
     store.setItem(STORAGE_KEY_LAST_BACKUP, String(Date.now()));
     updateBackupStatus();
-    showToast('Copia descargada: guárdala en Drive, iCloud o envíatela');
+    showToast(msg);
+}
+
+function exportFullBackup() {
+    flushSave();
+    downloadBlob(JSON.stringify(buildBackup(), null, 2), 'application/json', `SwimFuel_Copia_${todayLocalISO()}.json`);
+    markBackupDone('Copia descargada: guárdala en Drive, iCloud o envíatela');
+}
+
+// En el móvil, la copia se puede mandar directamente a Drive, al correo o a un chat contigo mismo
+async function shareFullBackup() {
+    flushSave();
+    const file = new File([JSON.stringify(buildBackup(), null, 2)], `SwimFuel_Copia_${todayLocalISO()}.json`, { type: 'application/json' });
+    if (!(navigator.canShare && navigator.canShare({ files: [file] }))) {
+        exportFullBackup();
+        return;
+    }
+    try {
+        await navigator.share({ files: [file], title: 'Copia de seguridad de SwimFuel' });
+        markBackupDone('Copia compartida');
+    } catch (err) {
+        if (err && err.name !== 'AbortError') exportFullBackup();   // si el móvil no deja compartir archivos, se descarga
+    }
 }
 
 // Tus datos solo viven en el móvil: se recuerda hacer copia cada 2 semanas
@@ -421,7 +445,7 @@ function updateBackupStatus() {
     el.textContent = days === null
         ? 'Todavía no has hecho ninguna copia de seguridad.'
         : `Última copia: ${days === 0 ? 'hoy' : `hace ${days} día${days === 1 ? '' : 's'}`}.`;
-    el.style.color = needs ? '#fbbf24' : '';
+    el.style.color = needs ? 'var(--warn)' : '';
     return needs;
 }
 

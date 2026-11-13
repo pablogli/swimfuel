@@ -436,3 +436,20 @@ test('comida: lo apuntado guarda si es estimado y cómo se midió', () => {
     const f = sanitizeFood({ name: 'Huevo', kcal: 143, unitName: ' huevo ', unitG: 60, cook: 9 });
     eq([f.unitName, f.unitG, f.cook], ['huevo', 60, 0]);
 });
+
+// ---------- Recuperación ----------
+test('recuperación: sueño, salto de carga y energía disponible baja', () => {
+    const today = '2026-03-30';
+    const days = [];
+    for (let i = 1; i <= 35; i++) days.push({ date: addDays(today, -i), kcalReal: 2600, kcalTarget: 4000, training: i <= 7 ? 1800 : 1000 });
+    const sleep = { goalMin: 510, week: { nights: 6, avgTotal: 420 } };
+    const r = recoverySignals({ sleep, days, today, weight: 80, bodyFat: 10, sex: 'M' });
+    eq(r.map(s => s.title), ['Sueño', 'Carga de entreno', 'Energía disponible']);
+    eq(r.map(s => s.tone), ['warn', 'warn', 'warn']);
+    eq(r[1].value, '+80 %');
+    eq(r[2].value, '11 kcal/kg');
+    const good = recoverySignals({ sleep: { goalMin: 510, week: { nights: 7, avgTotal: 505 } }, days: days.map(d => ({ ...d, kcalReal: 4300, training: 1000 })), today, weight: 80, bodyFat: 10, sex: 'M' });
+    eq(good.map(s => s.tone), ['ok', 'ok', 'ok']);
+    eq(good[2].value, '46 kcal/kg');
+    eq(recoverySignals({ sleep: null, days: [], today, weight: 80 }).map(s => s.tone), ['none', 'none', 'none']);
+});

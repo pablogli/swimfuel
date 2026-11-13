@@ -206,6 +206,12 @@
             </div>
         </section>
 
+        <section class="section">
+            <div class="section-head"><h2>Recuperación</h2></div>
+            <div id="recoveryList"></div>
+            <p class="footnote">Tres señales por separado, sin una nota inventada. La energía disponible es lo que comes menos lo que gastas entrenando, por kg de masa magra: por debajo de 30 es baja y 45 es el equilibrio (Loucks 2011; consenso del COI sobre RED-S, 2023). Si no has puesto tu % de grasa en Perfil, la masa magra se estima.</p>
+        </section>
+
         <section class="section" id="sleepAdviceSection" hidden>
             <div class="section-head"><h2>Para hoy</h2></div>
             <div id="sleepAdvice"></div>
@@ -265,6 +271,7 @@
             <div class="section-head"><h2>Datos</h2></div>
             <div class="list">
                 <button class="list-row" onclick="exportHistoryToCSV()"><span>Exportar a Excel</span><span data-icon="download"></span></button>
+                <button class="list-row" onclick="shareFullBackup()"><span>Enviar copia a Drive, correo…</span><span data-icon="upload"></span></button>
                 <button class="list-row" onclick="exportFullBackup()"><span>Descargar copia de seguridad</span><span data-icon="download"></span></button>
                 <label class="list-row tappable" style="cursor:pointer;">
                     <span>Restaurar copia</span><span data-icon="upload"></span>

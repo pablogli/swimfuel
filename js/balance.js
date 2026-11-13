@@ -162,3 +162,62 @@ function nextCalibration(current, suggested, days = 1) {
     const step = CALIB.stepPerDay * clamp(Math.round(num(days, 1)), 1, 14);
     return Math.round(clamp(suggested, current - step, current + step) * 100) / 100;
 }
+
+// ==========================================================
+// RECUPERACIÓN: tres señales por separado, sin una nota inventada
+// ==========================================================
+// sleep: resumen de sueño · days: [{ date, kcalReal, kcalTarget, training }] de las últimas 5 semanas, sin hoy
+function recoverySignals({ sleep, days, today, weight, bodyFat, sex }) {
+    const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+    const between = (from, to) => days.filter(d => d.date >= addDays(today, from) && d.date <= addDays(today, to));
+    const out = [];
+
+    // 1. Sueño de la semana frente a tu objetivo
+    if (sleep && sleep.week.nights >= 3) {
+        const gap = sleep.goalMin - sleep.week.avgTotal;
+        out.push({
+            title: 'Sueño', value: fmtDuration(sleep.week.avgTotal),
+            tone: gap <= 20 ? 'ok' : gap <= 60 ? 'info' : 'warn',
+            text: gap <= 20 ? 'Duermes lo que te has marcado esta semana.' : `De media te faltan ${fmtDuration(gap)} por noche para tu objetivo.`
+        });
+    } else {
+        out.push({ title: 'Sueño', value: '—', tone: 'none', text: 'Apunta al menos 3 noches esta semana para verlo.' });
+    }
+
+    // 2. Carga: lo que has entrenado estos 7 días frente a tu media de las 4 semanas anteriores
+    const load = list => list.reduce((a, d) => a + num(d.training), 0);
+    const week = load(between(-7, -1));
+    const before = between(-35, -8);
+    const usual = load(before) / 4;
+    if (before.filter(d => num(d.training) > 0).length >= 8 && usual > 0) {
+        const pct = Math.round((week / usual - 1) * 100);
+        out.push({
+            title: 'Carga de entreno', value: `${pct > 0 ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct)} %`,
+            tone: pct > 30 ? 'warn' : pct < -30 ? 'info' : 'ok',
+            text: pct > 30 ? 'Bastante más que tu media de las 4 semanas anteriores. En las subidas bruscas de carga es cuando más cuentan el sueño y la comida.'
+                : pct < -30 ? 'Bastante menos que tu media de las 4 semanas anteriores: semana de descarga.'
+                    : 'Parecida a la de tus 4 semanas anteriores.'
+        });
+    } else {
+        out.push({ title: 'Carga de entreno', value: week ? `${fmtInt(week)} kcal` : '—', tone: 'none', text: 'Con dos semanas de entrenos apuntados se compara con tu carga habitual.' });
+    }
+
+    // 3. Energía disponible: lo que comes menos lo que gastas entrenando, por kg de masa magra.
+    //    Menos de 30 kcal/kg es baja; 45 es el equilibrio (Loucks 2011; consenso del COI sobre RED-S, 2023)
+    const complete = between(-7, -1).filter(d => num(d.kcalTarget) > 0 && num(d.kcalReal) >= CALIB.completeFrac * num(d.kcalTarget));
+    if (complete.length >= 4 && weight > 0) {
+        const fat = num(bodyFat) >= 4 && num(bodyFat) <= 45 ? num(bodyFat) : (sex === 'F' ? 22 : 12);
+        const ffm = weight * (1 - fat / 100);
+        const ea = mean(complete.map(d => (num(d.kcalReal) - num(d.training)) / ffm));
+        out.push({
+            title: 'Energía disponible', value: `${Math.round(ea)} kcal/kg`,
+            tone: ea < 30 ? 'warn' : ea < 45 ? 'info' : 'ok',
+            text: ea < 30 ? 'Baja: tras descontar el entreno queda poca energía para el resto del cuerpo. Mantenido en el tiempo empeora el rendimiento, las defensas y la recuperación. Come más, sobre todo hidratos alrededor del entreno.'
+                : ea < 45 ? 'Algo justa: vale para unos días o para bajar peso con control, no para semanas de mucha carga.'
+                    : 'Suficiente para entrenar y recuperar bien.'
+        });
+    } else {
+        out.push({ title: 'Energía disponible', value: '—', tone: 'none', text: 'Con 4 días de esta semana con todas las comidas apuntadas se calcula.' });
+    }
+    return out;
+}
