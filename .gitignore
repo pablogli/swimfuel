@@ -5,3 +5,6 @@ versiones-anteriores/
 # Copias de seguridad con datos personales: nunca al repositorio
 SwimFuel_Copia_*.json
 SwimFuel_Historico_*.csv
+
+# Planes de entreno y otros documentos personales
+*.pdf

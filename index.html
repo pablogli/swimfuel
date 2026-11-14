@@ -659,6 +659,15 @@
             <button class="icon-btn" onclick="closeModal('modalSleep')" aria-label="Cerrar" data-icon="close"></button>
         </div>
         <div class="modal-body">
+            <label class="btn-secondary btn-sm" style="cursor:pointer; margin:0 0 6px; color:var(--text); width:100%;">
+                <span data-icon="camera" style="display:inline-flex;"></span>Rellenar con una captura del reloj
+                <input type="file" id="sleepShot" accept="image/*" multiple hidden>
+            </label>
+            <div id="sleepShotLoading" hidden style="margin-bottom:8px;">
+                <div class="small" style="color:var(--accent);" id="sleepShotText">Leyendo la captura…</div>
+                <div class="pulse"></div>
+            </div>
+            <p class="footnote" style="margin:0 2px 14px;">Haz una o dos capturas de la pantalla de sueño de Mi Fitness y elígelas aquí. Revisa lo que salga antes de guardar.</p>
             <div class="form-row">
                 <div class="form-group">
                     <label for="sleepBed">Me dormí</label>

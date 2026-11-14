@@ -229,12 +229,22 @@ function imageFileToBase64(file, maxPx = 1400) {
 
 // Pregunta a Gemini (con foto opcional) y devuelve el JSON de la respuesta. Usa tu clave gratuita y prueba
 // varios modelos: si uno ha agotado su cupo del día, el siguiente suele tener el suyo.
+// Pide la clave de Gemini si aún no está guardada. Devuelve true si ya hay clave.
+function ensureGeminiKey() {
+    if (store.getItem(STORAGE_KEY_GEMINI_KEY)) return true;
+    const key = (prompt('Para leer capturas hace falta tu clave gratuita de Google Gemini (se consigue en aistudio.google.com/app/apikey). Pégala aquí; se guarda solo en este dispositivo:') || '').trim();
+    if (!key) return false;
+    store.setItem(STORAGE_KEY_GEMINI_KEY, key);
+    return true;
+}
+
 async function geminiJSON(prompt, imageBase64, onStatus = () => {}) {
     const apiKey = store.getItem(STORAGE_KEY_GEMINI_KEY) || '';
     if (!apiKey) throw new Error('falta la clave de Gemini');
     const models = ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-2.5-flash'];
     const parts = [{ text: prompt }];
-    if (imageBase64) parts.push({ inline_data: { mime_type: 'image/jpeg', data: imageBase64 } });
+    // Una foto o varias (por ejemplo, dos capturas de la misma pantalla)
+    [].concat(imageBase64 || []).forEach(data => parts.push({ inline_data: { mime_type: 'image/jpeg', data } }));
     let raw = null;
     let lastError = null;
 

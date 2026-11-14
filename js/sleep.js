@@ -315,6 +315,7 @@ function sleepReadoutText(n) {
 function initSleepUI() {
     $('sleepRow').addEventListener('click', openSleepModal);
     $('btnSaveSleep').addEventListener('click', saveSleepFromModal);
+    $('sleepShot').addEventListener('change', fillSleepFromShots);
     $('btnDeleteSleep').addEventListener('click', deleteSleep);
     $('btnSleepGoal').addEventListener('click', chooseSleepGoal);
     ['sleepBed', 'sleepWake'].forEach(id => $(id).addEventListener('input', paintSleepSpan));
@@ -348,4 +349,54 @@ function renderRecovery(sum, today) {
             </div>
             <div class="advice-text" style="margin-top:6px;">${escapeHtml(s.text)}</div>
         </div>`).join('');
+}
+
+// Capturas de la app del reloj → la IA lee las horas, la nota, las fases y el pulso, y rellena la hoja.
+// No se guarda nada hasta que revisas y pulsas Guardar.
+async function fillSleepFromShots(event) {
+    const files = [...event.target.files].slice(0, 3);
+    event.target.value = '';
+    if (!files.length || !ensureGeminiKey()) return;
+    if (navigator.onLine === false) {
+        showToast('Sin conexión: escribe los datos a mano', COLOR.warn);
+        return;
+    }
+    const prompt = `Lee esta captura (o capturas) de la pantalla de sueño de una app de reloj (Mi Fitness u otra).
+Responde SOLO con JSON con esta forma:
+{"bed":"HH:MM","wake":"HH:MM","minutes":0,"quality":0,"deepMinutes":0,"remMinutes":0,"restingHr":0}
+- bed: hora a la que se durmió y wake: hora a la que se despertó, en formato de 24 horas.
+- minutes: tiempo total dormido por la noche, en minutos (sin contar siestas).
+- quality: la nota o puntuación de sueño, de 0 a 100.
+- deepMinutes y remMinutes: minutos de sueño profundo y de sueño REM.
+- restingHr: pulso medio o en reposo durante el sueño, en latidos por minuto.
+Pon null en lo que no aparezca. No inventes ningún dato.`;
+
+    $('sleepShotLoading').hidden = false;
+    try {
+        const images = await Promise.all(files.map(f => imageFileToBase64(f, 1600)));
+        const d = await geminiJSON(prompt, images, t => { $('sleepShotText').textContent = t; });
+        const setPair = (idH, idM, min) => {
+            if (!(num(min) > 0)) return false;
+            $(idH).value = Math.floor(num(min) / 60);
+            $(idM).value = Math.round(num(min)) % 60;
+            return true;
+        };
+        let found = 0;
+        if (TIME_RE.test(String(d.bed))) { $('sleepBed').value = d.bed; found++; }
+        if (TIME_RE.test(String(d.wake))) { $('sleepWake').value = d.wake; found++; }
+        if (setPair('sleepH', 'sleepM', d.minutes)) { sleepDurAuto = false; found++; }
+        if (d.quality !== null && d.quality !== undefined && num(d.quality, -1) >= 0) { $('sleepQuality').value = clamp(Math.round(num(d.quality)), 0, 100); found++; }
+        const deep = setPair('sleepDeepH', 'sleepDeepM', d.deepMinutes);
+        const rem = setPair('sleepRemH', 'sleepRemM', d.remMinutes);
+        const hr = num(d.restingHr) >= 25 && num(d.restingHr) <= 130;
+        if (hr) $('sleepHr').value = Math.round(num(d.restingHr));
+        if (deep || rem || hr) $('sleepMore').open = true;
+        if (!found && !deep && !rem && !hr) throw new Error('no he encontrado datos de sueño en la captura');
+        paintSleepSpan();
+        showToast('Datos leídos: revísalos y pulsa Guardar', COLOR.info);
+    } catch (err) {
+        showToast('No se pudo leer la captura: ' + err.message, COLOR.error);
+    } finally {
+        $('sleepShotLoading').hidden = true;
+    }
 }
