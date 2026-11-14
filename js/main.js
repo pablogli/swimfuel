@@ -11,6 +11,7 @@ function init() {
     loadAll();
     refreshFoodDatalist();
     appReady = true;
+    loadGymPlan();
     migrateOldDraft();
     autoCalibrate();
     openDate(todayLocalISO());
@@ -30,6 +31,7 @@ function init() {
     initModals();
     initSleepUI();
     initAddFoodUI();
+    initGymPlanUI();
     $('btnDeleteFood').addEventListener('click', () => { if (editingFoodId) deleteFood(editingFoodId); });
     // Tocar el título del día abre el calendario
     $('logDate').addEventListener('click', e => { try { e.target.showPicker(); } catch (err) {} });

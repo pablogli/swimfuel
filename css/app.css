@@ -667,3 +667,14 @@ button.meal-add:active { background: var(--surface-2); }
 .meal-favs::-webkit-scrollbar { display: none; }
 .meal-favs:empty { display: none; }
 .meal-favs .chip { flex: none; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+
+/* ---------- Plan de gimnasio ---------- */
+.gym-plan:empty { display: none; }
+.gp { background: var(--surface-2); border-radius: 14px; padding: 12px 14px; font-size: 13px; color: var(--text-2); }
+.gp > summary { cursor: pointer; font-weight: 600; color: var(--text); font-size: 14px; }
+.gp-block { margin-top: 10px; }
+.gp-title { color: var(--text); }
+.gp ul { margin: 4px 0 0 18px; }
+.gp li { margin: 2px 0; }
+.gp strong { color: var(--accent); font-weight: 600; }
+.gp-rest { margin-top: 10px; }

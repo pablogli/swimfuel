@@ -404,7 +404,8 @@ function buildBackup() {
         historyLogs,
         profile: readJSON(STORAGE_KEY_PROFILE, null),
         mealSlots: templateSlots,
-        dishes
+        dishes,
+        gymPlan
     };
 }
 
@@ -475,6 +476,7 @@ function importFullBackup(event) {
                 PROFILE_FIELDS.forEach(k => { if (prof[k]) $(k).value = prof[k]; });
             }
             if (Array.isArray(data.dishes)) { dishes = sanitizeDishes(data.dishes); saveDishes(); }
+            if (data.gymPlan) { gymPlan = sanitizeGymPlan(data.gymPlan); saveGymPlan(); renderGymPlanBox(); }
             const slots = sanitizeMealSlots(data.mealSlots);
             if (slots.length) { mealSlots = slots; saveSlots(); }
 

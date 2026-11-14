@@ -465,3 +465,33 @@ test('comida: habituales de cada comida', () => {
     eq(slotFavorites(hist, 'm1', '2026-03-05').map(f => f.count), [2]);
     eq(slotFavorites([], 'm1', '2026-03-06'), []);
 });
+
+// ---------- Plan de gimnasio ----------
+test('gimnasio: series, kilos e intensidad a partir del porcentaje', () => {
+    eq(parseRx('4x5 (85%)'), { sets: 4, reps: '5', pct: 85 });
+    eq(parseRx('3x10/12 (70 %)'), { sets: 3, reps: '10/12', pct: 70 });
+    eq(parseRx('2x3 (3 RIR)'), null);
+    eq(parseRx('Activación'), null);
+    eq(rxKg(99.39, 85), 84.5);
+    eq(rxKg(132.51, 85), 112.5);
+    eq([rpeFromRx('3x3 (95%)'), rpeFromRx('4x5 (85%)'), rpeFromRx('3x10 (70%)'), rpeFromRx('2x8 (60%)'), rpeFromRx('-')], [9, 8, 7, 6, 6]);
+});
+
+test('gimnasio: lo que toca cada día sale del día de la semana y de la semana del plan', () => {
+    const plan = sanitizeGymPlan({
+        name: 'Seco', maxes: [{ key: 'banc', name: 'Press banca', kg: 99.39 }, { key: '', name: 'x' }],
+        days: [{ weekday: 1, title: 'Fuerza', minutes: 65, gymType: 'strength', blocks: [{ title: 'Fuerza', role: 'main', items: [{ text: 'Press banca', max: 'banc' }, 'Sentadilla'] }, { title: 'vacío', items: [] }] }, { weekday: 9, blocks: [] }],
+        weeks: [{ n: 7, from: '2026-11-09', days: { 1: { main: '4x5 (85%)', sec: '3x8 (75%)', rest: '3 min' }, x: {} } }, { n: 6, from: '2026-11-02', days: {} }, { from: 'mal' }]
+    });
+    eq([plan.days.length, plan.days[0].blocks.length, plan.maxes.length, plan.weeks.map(w => w.n)], [1, 1, 1, [6, 7]]);
+    eq(plan.days[0].blocks[0].items.map(i => [i.text, i.max]), [['Press banca', 'banc'], ['Sentadilla', '']]);
+    const mon = planForDate(plan, '2026-11-09');
+    eq([mon.day.title, mon.week.n, mon.rx.main], ['Fuerza', 7, '4x5 (85%)']);
+    eq(planForDate(plan, '2026-11-10').day, null);
+    eq(planForDate(plan, '2026-11-15').week.n, 7);
+    const late = planForDate(plan, '2026-11-16');
+    eq([late.day.title, late.week, late.rx], ['Fuerza', null, null]);
+    eq(planForDate(null, '2026-11-09').day, null);
+    eq(sanitizeGymPlan({ days: [] }), null);
+    eq(sanitizeGymPlan('x'), null);
+});

@@ -166,6 +166,7 @@ function buildSessionCard(s) {
             <div><label>Estilo base</label><select data-f="stroke">${optionsHtml(STROKES, s.stroke)}</select></div>`;
     } else if (s.type === 'gym') {
         fields = `
+            <div class="span-all gym-plan">${gymPlanHtml(currentDate)}</div>
             <div class="span-2"><label>Tipo</label><select data-f="gymType">${optionsHtml(GYM_TYPES, s.gymType)}</select></div>
             ${minutesField}`;
     } else {
@@ -297,6 +298,7 @@ function chooseSessionType() {
 function addSession(type) {
     const defaults = { swim: { minutes: 90, rpe: 6 }, gym: { minutes: 60, rpe: 6 }, other: { minutes: 45, rpe: 5 } };
     const s = sanitizeSession({ type, ...defaults[type] });
+    if (type === 'gym') applyGymPlanDefaults(s);
     sessions.push(s);
     openSessions.add(s.id);
     renderSessions();

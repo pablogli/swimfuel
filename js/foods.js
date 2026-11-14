@@ -244,7 +244,8 @@ async function geminiJSON(prompt, imageBase64, onStatus = () => {}) {
     const models = ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-2.5-flash'];
     const parts = [{ text: prompt }];
     // Una foto o varias (por ejemplo, dos capturas de la misma pantalla)
-    [].concat(imageBase64 || []).forEach(data => parts.push({ inline_data: { mime_type: 'image/jpeg', data } }));
+    // Cada elemento es una foto JPEG en base64 o { mime, data } (por ejemplo, un PDF)
+    [].concat(imageBase64 || []).forEach(m => parts.push({ inline_data: typeof m === 'string' ? { mime_type: 'image/jpeg', data: m } : { mime_type: m.mime, data: m.data } }));
     let raw = null;
     let lastError = null;
 
@@ -256,7 +257,7 @@ async function geminiJSON(prompt, imageBase64, onStatus = () => {}) {
                 headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
                 body: JSON.stringify({
                     contents: [{ parts }],
-                    generationConfig: { temperature: 0.1, maxOutputTokens: 4096, responseMimeType: 'application/json' }
+                    generationConfig: { temperature: 0.1, maxOutputTokens: 8192, responseMimeType: 'application/json' }
                 })
             });
             if (res.ok) {
