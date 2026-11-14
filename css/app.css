@@ -662,3 +662,8 @@ button.meal-add:active { background: var(--surface-2); }
 
 .status-none { background: var(--surface-2); color: var(--text-2); }
 .modal-box:focus { outline: none; }
+
+.meal-favs { margin: 0; padding: 10px 12px 2px 16px; border-top: 1px solid var(--line); flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.meal-favs::-webkit-scrollbar { display: none; }
+.meal-favs:empty { display: none; }
+.meal-favs .chip { flex: none; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }

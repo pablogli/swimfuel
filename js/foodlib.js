@@ -141,3 +141,28 @@ function dishTotals(d) {
         per100: { kcal: round1(t.kcal * k), c: round1(t.c * k), p: round1(t.p * k), f: round1(t.f * k) }
     };
 }
+
+// Lo que más repites en una comida concreta (desayuno, cena…) en los últimos 60 días: al menos 2 veces.
+// Devuelve [{ count, date, item }] con el alimento tal como lo apuntaste la última vez.
+function slotFavorites(history, slotId, openDate, limit = 4) {
+    const from = addDays(openDate, -60);
+    const stats = {};
+    history.forEach(h => {
+        if (h.date === openDate || h.date < from) return;
+        const list = (h.mealsSnapshot || {})[slotId];
+        (Array.isArray(list) ? list : []).forEach(i => {
+            if (!i || !i.name) return;
+            const key = normText(i.name);
+            const s = stats[key] || (stats[key] = { count: 0, date: '', item: null });
+            s.count++;
+            if (String(h.date) >= s.date) {
+                s.date = String(h.date);
+                s.item = i;
+            }
+        });
+    });
+    return Object.values(stats)
+        .filter(s => s.count >= 2)
+        .sort((a, b) => b.count - a.count || b.date.localeCompare(a.date))
+        .slice(0, limit);
+}

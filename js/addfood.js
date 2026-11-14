@@ -31,7 +31,7 @@ function addEntries(withDishes = true) {
             const t = dishTotals(d);
             if (!(t.grams > 0)) return;
             out.push({
-                kind: 'dish', name: d.name, per100: t.per100,
+                kind: 'dish', name: d.name, per100: t.per100, dish: d, dishGrams: t.grams,
                 units: [{ label: `ración (${Math.round(t.portionG)} g)`, grams: t.portionG }, { label: 'g servidos', grams: 1 }]
             });
         });
@@ -143,6 +143,8 @@ function pickEntry(e) {
     $('qtyUnit').value = String(unitIdx);
     $('qtyUnit').dataset.prev = String(unitIdx);
     $('qtyAmount').value = amount;
+    $('qtySplitRow').hidden = !(e.dish && e.dish.ingredients.length > 1);
+    $('qtySplit').checked = false;
     paintQty();
     showAddView('Qty');
     setTimeout(() => $('qtyAmount').select(), 60);
@@ -187,7 +189,14 @@ function confirmAdd() {
         }
         const note = unit.cooked ? `${fmtQty(amount)} g cocinado`
             : unit.grams !== 1 ? `${fmtQty(amount)} ${unit.label.replace(/\s*\(.*\)$/, '')}` : '';
-        addItemToMeal(addSlotId, { name: addPick.name, ...addPick.per100 }, grams, { est: Boolean(addPick.est), note });
+        if (addPick.dish && $('qtySplit').checked) {
+            // Plato desglosado: cada ingrediente entra en su proporción y se puede retocar o quitar
+            const k = grams / addPick.dishGrams;
+            addPick.dish.ingredients.filter(i => i.grams > 0).forEach(i => addItemToMeal(addSlotId,
+                { name: i.name, kcal: i.kcal100, c: i.c100, p: i.p100, f: i.f100 }, round1(i.grams * k), { est: i.est, note: addPick.name }));
+        } else {
+            addItemToMeal(addSlotId, { name: addPick.name, ...addPick.per100 }, grams, { est: Boolean(addPick.est), note });
+        }
         const key = normText(addPick.name);
         const item = (mealsState[addSlotId] || []).slice(-1)[0];
         addUsage[key] = { count: ((addUsage[key] || {}).count || 0) + 1, date: currentDate, item };

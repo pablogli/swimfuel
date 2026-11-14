@@ -439,11 +439,13 @@ function renderMeals() {
                 <button class="icon-btn" data-act="menu" aria-label="Opciones de ${escapeHtml(slot.title)}">${icon('more')}</button>
             </div>
             <div id="items_${slot.id}"></div>
+            <div class="chips meal-favs" id="favs_${slot.id}"></div>
             <button class="meal-add" type="button" data-act="add" aria-label="Añadir a ${escapeHtml(slot.title)}">${icon('plus')}<span>Añadir alimento o plato</span></button>`;
 
         el.querySelector('[data-act="add"]').addEventListener('click', () => openAddSheet(slot.id));
         el.querySelector('[data-act="menu"]').addEventListener('click', () => openActionSheet(slot.title, [
             { label: 'Cambiar nombre', icon: 'edit', run: () => renameMeal(slot.id) },
+            ...(lastMealOf(slot.id) ? [{ label: `Repetir la del ${formatDateES(lastMealOf(slot.id).date)}`, icon: 'copy', run: () => repeatMeal(slot.id) }] : []),
             { label: 'Guardar como plato', icon: 'copy', run: () => saveMealAsDish(slot.id) },
             { label: 'Eliminar comida', icon: 'trash', danger: true, run: () => removeMeal(slot.id) }
         ]));
@@ -494,6 +496,45 @@ function renderMealItems(slotId) {
     });
 
     updateMealSummary(slotId);
+    renderMealFavs(slotId);
+}
+
+// Tus habituales de esta comida: un toque y entran con la cantidad de la última vez
+function renderMealFavs(slotId) {
+    const box = $(`favs_${slotId}`);
+    if (!box) return;
+    const have = new Set((mealsState[slotId] || []).map(i => normText(i.name)));
+    box.innerHTML = '';
+    slotFavorites(historyLogs, slotId, currentDate).filter(f => !have.has(normText(f.item.name))).forEach(f => {
+        const item = sanitizeItem(f.item);
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip';
+        b.textContent = `+ ${item.name}`;
+        b.setAttribute('aria-label', `Añadir ${item.name}, ${Math.round(itemMacros(item).k)} kcal como la última vez`);
+        b.addEventListener('click', () => {
+            if (!mealsState[slotId]) mealsState[slotId] = [];
+            mealsState[slotId].push(sanitizeItem(f.item));
+            renderMealItems(slotId);
+            onDayChanged();
+        });
+        box.appendChild(b);
+    });
+}
+
+// La última vez que apuntaste algo en esta misma comida, antes del día abierto
+function lastMealOf(slotId) {
+    const rec = historyLogs.find(h => h.date < currentDate && Array.isArray((h.mealsSnapshot || {})[slotId]) && h.mealsSnapshot[slotId].length);
+    return rec ? { date: rec.date, items: rec.mealsSnapshot[slotId] } : null;
+}
+
+function repeatMeal(slotId) {
+    const last = lastMealOf(slotId);
+    if (!last) return;
+    mealsState[slotId] = [...(mealsState[slotId] || []), ...last.items.map(sanitizeItem).filter(Boolean)];
+    renderMealItems(slotId);
+    onDayChanged();
+    showToast(`Añadido lo del ${formatDateES(last.date)}`);
 }
 
 function updateMealSummary(slotId) {

@@ -453,3 +453,15 @@ test('recuperación: sueño, salto de carga y energía disponible baja', () => {
     eq(good[2].value, '46 kcal/kg');
     eq(recoverySignals({ sleep: null, days: [], today, weight: 80 }).map(s => s.tone), ['none', 'none', 'none']);
 });
+
+test('comida: habituales de cada comida', () => {
+    const day = (d, m1, m5) => ({ date: d, mealsSnapshot: { m1: m1.map(n => ({ name: n, grams: 100 })), m5: (m5 || []).map(n => ({ name: n, grams: 100 })) } });
+    const hist = [
+        day('2026-03-05', ['Colacao', 'Tostadas']), day('2026-03-04', ['colacao'], ['Pasta']), day('2026-03-03', ['Colacao', 'Tostadas'], ['Pasta']),
+        day('2026-03-02', ['Huevos revueltos']), day('2025-11-01', ['Avena']), day('2025-11-02', ['Avena'])
+    ];
+    eq(slotFavorites(hist, 'm1', '2026-03-06').map(f => [f.item.name, f.count]), [['Colacao', 3], ['Tostadas', 2]]);
+    eq(slotFavorites(hist, 'm5', '2026-03-06').map(f => f.item.name), ['Pasta']);
+    eq(slotFavorites(hist, 'm1', '2026-03-05').map(f => f.count), [2]);
+    eq(slotFavorites([], 'm1', '2026-03-06'), []);
+});
