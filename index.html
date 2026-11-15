@@ -105,7 +105,7 @@
                 <h2>Entrenamiento</h2>
                 <button class="text-btn" id="btnAddSession" data-icon="plus">Añadir</button>
             </div>
-            <div class="list">
+            <div class="list" id="dayTypeList" hidden>
                 <label class="list-row">
                     <span>Tipo de día</span>
                     <select id="dayType" class="inline-select">
@@ -117,6 +117,7 @@
             </div>
             <div class="list sessions" id="sessionsContainer"></div>
             <p class="footnote" id="energyBreakdown"></p>
+            <button class="text-btn small" id="btnDayType" style="margin:8px 4px 0;">Hoy es tapering o competición</button>
         </section>
 
         <section class="section">
@@ -127,10 +128,19 @@
             <div id="mealsContainer"></div>
         </section>
 
-        <section class="section">
-            <div class="section-head"><h2>Notas</h2></div>
-            <textarea id="logNotes" rows="2" placeholder="Sensaciones, cansancio, cómo fue el entreno…"></textarea>
-        </section>
+        <details class="disclosure" id="notesCard" style="margin-bottom:10px;">
+            <summary>
+                <span class="s-icon" data-icon="edit"></span>
+                <span class="grow" style="min-width:0;">
+                    <span class="s-title" style="display:block;">Notas</span>
+                    <span class="s-sub" id="notesSummary" style="display:block;"></span>
+                </span>
+                <span class="s-chev" data-icon="chevronDown"></span>
+            </summary>
+            <div class="disclosure-body">
+                <textarea id="logNotes" rows="3" placeholder="Sensaciones, cansancio, cómo fue el entreno…" aria-label="Notas del día"></textarea>
+            </div>
+        </details>
 
         <details class="disclosure" id="fuelCard" style="margin-bottom:10px;">
             <summary>
@@ -532,12 +542,13 @@
             <div id="addViewSearch">
                 <div class="search">
                     <span data-icon="search"></span>
-                    <input type="search" id="addSearch" placeholder="Buscar alimento o plato" autocomplete="off">
+                    <input type="search" id="addSearch" placeholder="Buscar, o escribe: 2 empanadillas, 3 rebanadas de pan" autocomplete="off">
                 </div>
                 <div class="chips" style="margin:0 0 6px;">
                     <button type="button" class="chip" id="btnAddEstimate" style="color:var(--accent); background:var(--accent-soft);">No puedo pesarlo: estimar</button>
                     <button type="button" class="chip" id="btnAddQuick">Kcal a mano</button>
                 </div>
+                <div id="addPhrase" hidden style="margin-bottom:6px;"></div>
                 <div class="section-title" id="addListTitle"></div>
                 <div class="list" id="addResults"></div>
             </div>

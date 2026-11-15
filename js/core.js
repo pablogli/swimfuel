@@ -427,6 +427,10 @@ function openDate(date) {
     renderMeals();
     renderSessions();
     updateSleepRow();
+    dayTypeOpen = false;
+    updateDayTypeUI();
+    updateNotesSummary();
+    $('notesCard').open = false;
     recalculateTargets();
     updateDateNav();
     updateSaveIndicator();

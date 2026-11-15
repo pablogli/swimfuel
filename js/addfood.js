@@ -81,6 +81,15 @@ function renderAddResults() {
     const q = $('addSearch').value.trim();
     const box = $('addResults');
     let list;
+    const phrase = q && isPhrase(q) ? resolvePhrase(q, addEntries(), addUsage) : [];
+    renderPhrase(phrase);
+    if (phrase.some(p => p.entry)) {
+        // Frase entendida: no hace falta la lista de resultados
+        $('addListTitle').textContent = '';
+        box.innerHTML = '';
+        box.hidden = true;
+        return;
+    }
     if (!q) {
         const byName = Object.fromEntries(addEntries().map(e => [normText(e.name), e]));
         list = Object.entries(addUsage)
@@ -123,6 +132,35 @@ function renderAddResults() {
         box.appendChild(b);
     }
     box.hidden = !box.children.length;
+}
+
+// Frase rápida: "2 empanadillas, 3 rebanadas de pan y un colacao" → se enseña lo entendido y se añade todo junto
+function renderPhrase(parts) {
+    const box = $('addPhrase');
+    const found = parts.filter(p => p.entry);
+    box.hidden = !found.length;
+    if (!found.length) return;
+    const unitName = p => (p.unit && p.unit.grams > 2 ? p.unit.label.replace(/\s*\(.*\)$/, '') : '');
+    const total = found.reduce((a, p) => a + p.entry.per100.kcal * p.grams / 100, 0);
+    box.innerHTML = `
+        <div class="list">${parts.map(p => (p.entry ? `
+            <div class="list-row">
+                <span class="fi-main">
+                    <span class="fi-name">${p.entry.est ? '≈ ' : ''}${escapeHtml(p.entry.name)}</span>
+                    <span class="fi-macros">${p.inGrams ? '' : `${fmtQty(p.qty)}${unitName(p) ? ' ' + escapeHtml(unitName(p)) : ' × ración'} · `}${fmtQty(p.grams)} g</span>
+                </span>
+                <span class="s-kcal">${Math.round(p.entry.per100.kcal * p.grams / 100)} <small>kcal</small></span>
+            </div>` : `
+            <div class="list-row"><span class="fi-main"><span class="fi-name muted">No encuentro «${escapeHtml(p.name)}»</span><span class="fi-macros">Búscalo aparte o usa "estimar"</span></span></div>`)).join('')}
+        </div>
+        <button class="btn-primary" id="btnAddPhrase" style="width:100%; margin-top:10px;">Añadir ${found.length === 1 ? 'esto' : `las ${found.length} cosas`} · ${fmtInt(total)} kcal</button>`;
+    $('btnAddPhrase').addEventListener('click', () => {
+        found.forEach(p => addItemToMeal(addSlotId, { name: p.entry.name, ...p.entry.per100 }, p.grams,
+            { est: Boolean(p.entry.est), note: !p.inGrams && unitName(p) ? `${fmtQty(p.qty)} ${unitName(p)}` : '' }));
+        showToast(found.length === 1 ? `${found[0].entry.name} añadido` : `${found.length} cosas añadidas`);
+        $('addSearch').value = '';
+        renderAddResults();
+    });
 }
 
 // ---------- Cantidad ----------

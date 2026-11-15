@@ -88,6 +88,21 @@ function paintEnergy() {
         '. Con el 200 y el 400 salen más ajustados.';
 }
 
+// ---------- Pantalla más corta: lo que no se usa a diario va plegado ----------
+let dayTypeOpen = false;
+
+// "Tipo de día" solo se ve si hoy es tapering o competición, o si lo pides
+function updateDayTypeUI() {
+    const special = $('dayType').value !== 'Normal';
+    $('dayTypeList').hidden = !special && !dayTypeOpen;
+    $('btnDayType').hidden = special || dayTypeOpen;
+}
+
+function updateNotesSummary() {
+    const text = $('logNotes').value.trim();
+    $('notesSummary').textContent = text ? (text.length > 44 ? text.slice(0, 44) + '…' : text) : 'Sensaciones, cansancio, cómo fue el entreno';
+}
+
 // ---------- Entrenos: filas que se despliegan al tocarlas ----------
 const SET_CHIPS = ['AEL', 'AEM', 'AEI', 'VO2', 'R200', 'R100', 'VEL', 'suave', 'pies', 'brazos', 'técnica', 'aletas', 'palas', 'espalda', 'braza', 'mariposa', 'estilos'];
 

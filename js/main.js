@@ -26,7 +26,9 @@ function init() {
         const evt = $(id).tagName === 'SELECT' ? 'change' : 'input';
         $(id).addEventListener(evt, () => { recalculateTargets(); scheduleSave(); });
     });
-    $('logNotes').addEventListener('input', scheduleSave);
+    $('logNotes').addEventListener('input', () => { scheduleSave(); updateNotesSummary(); });
+    $('dayType').addEventListener('change', updateDayTypeUI);
+    $('btnDayType').addEventListener('click', () => { dayTypeOpen = true; updateDayTypeUI(); });
     $('btnAddSession').addEventListener('click', chooseSessionType);
     initModals();
     initSleepUI();

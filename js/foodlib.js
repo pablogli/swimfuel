@@ -178,3 +178,54 @@ function slotFavorites(history, slotId, openDate, limit = 4) {
         .sort((a, b) => b.count - a.count || b.date.localeCompare(a.date))
         .slice(0, limit);
 }
+
+// ---------- Frase rápida: "2 empanadillas, 3 rebanadas de pan y un colacao" ----------
+const NUMBER_WORDS = { un: 1, una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, medio: 0.5, media: 0.5 };
+const QTY_RE = '\\d+(?:[.,]\\d+)?|(?:' + Object.keys(NUMBER_WORDS).join('|') + ')\\b';
+
+// Es una frase (y no una búsqueda normal) si empieza por una cantidad o lleva comas
+function isPhrase(text) {
+    const t = normText(text);
+    return /[,;]/.test(t) || new RegExp(`^(?:${QTY_RE})(?=\\s|g|$)`).test(t);
+}
+
+// → [{ qty, inGrams, name }]. Se separa por comas y por "y" cuando después viene otra cantidad
+function parsePhrase(text) {
+    const split = new RegExp(`\\s*[,;+\\n]\\s*|\\s+y\\s+(?=(?:${QTY_RE})\\b)`);
+    const part = new RegExp(`^(${QTY_RE})?\\s*(g|gr|gramos|ml)?\\b\\s*(?:de\\s+)?(.*)$`);
+    return normText(text).split(split).map(s => s.trim()).filter(Boolean).map(s => {
+        const m = part.exec(s) || [];
+        const raw = m[1];
+        const qty = raw === undefined ? 1 : (NUMBER_WORDS[raw] ?? num(raw.replace(',', '.'), 1));
+        const inGrams = Boolean(m[2]) && raw !== undefined;
+        return { qty: qty > 0 ? qty : 1, inGrams, name: (inGrams || raw !== undefined ? m[3] : s).trim() };
+    }).filter(p => p.name);
+}
+
+// Quita el plural para que "empanadillas" encuentre "Empanadilla" y "panes", "Pan"
+function stemWord(w) {
+    return w.length > 3 ? w.replace(/([^aeiou])es$/, '$1').replace(/s$/, '') : w;
+}
+
+// Busca cada parte entre tus alimentos, platos y genéricos (entries, con sus medidas en units).
+// "3 rebanadas de pan": si la primera palabra es una medida de algún alimento, se usa esa medida.
+function resolvePhrase(text, entries, usage = {}) {
+    return parsePhrase(text).map(part => {
+        const words = part.name.split(/\s+/).filter(w => w && w !== 'de' && w !== 'del').map(stemWord);
+        const find = (ws, pool) => (ws.length ? searchFoods(ws.join(' '), pool, usage, 1)[0] : null) || null;
+        let entry = null, unit = null;
+        if (!part.inGrams && words.length > 1) {
+            const hasUnit = e => e.units.find(u => u.grams > 2 && normText(u.label).startsWith(words[0]));
+            entry = find(words.slice(1), entries.filter(hasUnit));
+            if (entry) unit = hasUnit(entry);
+        }
+        if (!entry) entry = find(words, entries);
+        if (!entry) return { ...part, entry: null };
+        if (part.inGrams) {
+            return { ...part, entry, unit: null, grams: round1(part.qty) };
+        }
+        // Sin medida escrita: la primera medida del alimento (unidad, ración, plato…) o su ración habitual
+        if (!unit) unit = entry.units.find(u => u.grams > 2) || null;
+        return { ...part, entry, unit, grams: round1(part.qty * (unit ? unit.grams : (entry.defaultG || 100))) };
+    });
+}

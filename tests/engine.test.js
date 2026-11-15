@@ -495,3 +495,25 @@ test('gimnasio: lo que toca cada día sale del día de la semana y de la semana 
     eq(sanitizeGymPlan({ days: [] }), null);
     eq(sanitizeGymPlan('x'), null);
 });
+
+test('comida: frase rápida con cantidades, medidas y gramos', () => {
+    const g = n => { const f = GENERIC_FOODS.find(x => x.name.startsWith(n)); return { kind: 'generic', name: f.name, est: true, per100: {}, units: [...f.units.map(([label, grams]) => ({ label: `${label} (${grams} g)`, grams })), { label: 'g', grams: 1 }] }; };
+    const entries = [
+        g('Empanadilla'), g('Pan blanco'), g('Pan de molde'), g('Croquetas'),
+        { kind: 'food', name: 'Pan de barra', per100: {}, units: [{ label: 'g', grams: 1 }], defaultG: 80 },
+        { kind: 'food', name: 'Arroz blanco (en crudo)', per100: {}, units: [{ label: 'g', grams: 1 }], defaultG: 100 },
+        { kind: 'dish', name: 'Colacao', per100: {}, units: [{ label: 'ración (270 g)', grams: 270 }, { label: 'g servidos', grams: 1 }] }
+    ];
+    ok(isPhrase('2 empanadillas') && isPhrase('pan, leche') && isPhrase('un colacao') && isPhrase('200g arroz'));
+    ok(!isPhrase('arroz con pollo y verduras') && !isPhrase('pan'));
+    eq(parsePhrase('2 empanadillas, 3 rebanadas de pan y un colacao').map(p => [p.qty, p.name]), [[2, 'empanadillas'], [3, 'rebanadas de pan'], [1, 'colacao']]);
+    eq(parsePhrase('arroz con pollo y verduras').length, 1);
+    eq(parsePhrase('media barrita; 200 g de arroz').map(p => [p.qty, p.inGrams, p.name]), [[0.5, false, 'barrita'], [200, true, 'arroz']]);
+    const r = resolvePhrase('2 Empanadillas, 3 rebanadas de pan y un colacao, 200 g de arroz, 4 croquetas, 2 pan de barra, algo raro', entries);
+    eq(r.map(p => [p.entry ? p.entry.name.split(' ')[0] : null, p.grams]), [['Empanadilla', 80], ['Pan', 90], ['Colacao', 270], ['Arroz', 200], ['Croquetas', 120], ['Pan', 160], [null, undefined]]);
+    eq(r[1].entry.name, 'Pan blanco');
+    eq(r[1].unit.label, 'rebanada (30 g)');
+    eq(r[5].entry.name, 'Pan de barra');
+    eq(stemWord('panes'), 'pan');
+    eq(stemWord('lentejas'), 'lenteja');
+});
