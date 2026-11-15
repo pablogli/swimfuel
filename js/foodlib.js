@@ -44,6 +44,18 @@ const GENERIC_FOODS = [
     ['Jamón serrano', 240, 0, 31, 13, [['loncha', 15]]],
     ['Frutos secos', 600, 12, 20, 52, [['puñado', 30]]],
     ['Aceite de oliva', 884, 0, 0, 100, [['cucharada', 12], ['chorro', 8]]],
+    ['Empanadilla frita (atún o carne)', 290, 30, 8, 15, [['unidad', 40], ['grande', 80]]],
+    ['Empanada, porción', 250, 28, 9, 11, [['porción', 120]]],
+    ['Croquetas', 220, 20, 7, 12, [['unidad', 30]]],
+    ['Pan de molde', 250, 46, 8.5, 3.5, [['rebanada', 28]]],
+    ['Sándwich mixto', 250, 26, 13, 10.5, [['unidad', 130]]],
+    ['Pollo empanado o nuggets', 250, 15, 16, 14, [['nugget', 20], ['filete', 130]]],
+    ['Tortilla de trigo (wrap)', 300, 50, 8, 7, [['unidad', 60]]],
+    ['Galletas tipo María', 440, 74, 7, 12, [['galleta', 6]]],
+    ['Magdalena o bollería', 400, 50, 6, 19, [['magdalena', 35], ['cruasán', 60]]],
+    ['Barrita de cereales', 400, 65, 6, 12, [['barrita', 25]]],
+    ['Chocolate', 540, 50, 7, 33, [['onza', 10]]],
+    ['Helado', 200, 24, 3.5, 10, [['bola', 60]]],
     ['Zumo de fruta', 45, 10.5, 0.5, 0.1, [['vaso', 200]]],
     ['Bebida isotónica', 26, 6.4, 0, 0, [['botella', 500], ['vaso', 250]]]
 ].map(([name, kcal, c, p, f, units]) => ({ name, kcal, c, p, f, units }));
